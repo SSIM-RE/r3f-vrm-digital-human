@@ -1,0 +1,230 @@
+import { useState, useCallback, useRef } from 'react';
+import { useVRMControl } from '../stores/useVRMControl';
+
+const API_URL = '/tts';
+const REF_AUDIO = 'D:\\ref_v2.wav';
+
+export function useTTS() {
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [error, setError] = useState(null);
+  const audioRef = useRef(null);
+  const audioContextRef = useRef(null);
+  const analyserRef = useRef(null);
+  const lipSyncCallbackRef = useRef(null);
+  const animationFrameRef = useRef(null);
+  
+  // 骞虫粦澶勭悊 - 淇濆瓨涓婁竴甯у€硷紙宸茬鐢紝鐢?VRM 绔粺涓€澶勭悊锛?  const prevLipSyncRef = useRef({ aa: 0, ih: 0, ee: 0, oh: 0, ou: 0 });
+
+  const initModel = useCallback(async () => {
+    try {
+      const response = await fetch(API_URL, { method: 'GET', signal: AbortSignal.timeout(5000) });
+      return response.ok;
+    } catch (err) {
+      return false;
+    }
+  }, []);
+
+  const setLipSyncCallback = useCallback((callback) => {
+    lipSyncCallbackRef.current = callback;
+  }, []);
+
+  /**
+   * 鏀硅繘鐨勫彛鍨嬪悓姝?- 棰戣氨鍒嗘瀽
+   * 鍘熺悊锛氫笉鍚屽厓闊崇殑棰戠巼鍒嗗竷涓嶅悓
+   * - aa (鍟?: 浣庨涓轰富锛屽甯﹀厓闊?   * - ih (涓€): 涓涓轰富
+   * - ee (楣?琛?: 涓珮棰戜负涓?   * - oh (鍝?: 浣庨涓轰富锛屽渾鍞囧厓闊?   * - ou (鍝?涔?: 楂橀涓轰富锛屽渾鍞囧厓闊?   */
+  const analyzeAudio = useCallback(() => {
+    if (!analyserRef.current || !lipSyncCallbackRef.current) {
+      return;
+    }
+    
+    // 鑾峰彇棰戝煙鏁版嵁
+    const bufferLength = analyserRef.current.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    analyserRef.current.getByteFrequencyData(dataArray);
+    
+    // 鑾峰彇鏃跺煙鏁版嵁锛堢敤浜庢娴嬮煶閲忓拰娓呴煶/娴婇煶锛?    const timeDataArray = new Uint8Array(bufferLength);
+    analyserRef.current.getByteTimeDomainData(timeDataArray);
+    
+    // 璁＄畻闊抽噺 (RMS)
+    let sum = 0;
+    for (let i = 0; i < bufferLength; i++) {
+      const v = (timeDataArray[i] - 128) / 128;
+      sum += v * v;
+    }
+    const volume = Math.sqrt(sum / bufferLength);
+    
+    // 鏈€灏忛煶閲忛槇鍊?    const minVolume = 0.01;
+    if (volume < minVolume) {
+      // 闊抽噺澶皬鏃朵笉鏇存柊 lipSyncExpressions锛屼繚鎸佸綋鍓嶅€?      if (audioRef.current && !audioRef.current.paused) {
+        animationFrameRef.current = requestAnimationFrame(analyzeAudio);
+      }
+      return;
+    }
+    
+    // 棰戞鍒掑垎 (鏍规嵁 fftSize=512, 44100Hz 閲囨牱鐜?
+    // 姣忎釜 bin = 44100 / 512 鈮?86 Hz
+    const lowEnd = Math.floor(bufferLength * 0.15);   // 0-1300Hz 浣庨
+    const midEnd = Math.floor(bufferLength * 0.5);    // 1300-4300Hz 涓  
+    // 4300+Hz 楂橀
+    
+    // 璁＄畻鍚勯娈佃兘閲?    let lowSum = 0, midSum = 0, highSum = 0;
+    for (let i = 0; i < lowEnd; i++) lowSum += dataArray[i];
+    for (let i = lowEnd; i < midEnd; i++) midSum += dataArray[i];
+    for (let i = midEnd; i < bufferLength; i++) highSum += dataArray[i];
+    
+    const lowAvg = lowSum / lowEnd / 255;
+    const midAvg = midSum / (midEnd - lowEnd) / 255;
+    const highAvg = highSum / (bufferLength - midEnd) / 255;
+    
+    // 浼樺寲鍚庣殑鏄犲皠绠楁硶
+    // 闄嶄綆鏁翠綋骞呭害锛屽鍔犲悇鍏冮煶鍖哄垎搴?    
+    // 璁＄畻鍚勯娈电浉瀵瑰己搴?    const total = lowAvg + midAvg + highAvg + 0.001;
+    const lowRatio = lowAvg / total;
+    const midRatio = midAvg / total;
+    const highRatio = highAvg / total;
+    
+    // 褰掍竴鍖栭煶閲?(0-1)
+    const normalizedVolume = Math.min(1, volume * 3);
+    
+    // 绠€鍖栫増鍙ｅ瀷鍚屾锛氱洿鎺ョ敤闊抽噺椹卞姩 aa
+    // 鍘熷洜锛氶鐜囨槧灏勫涓枃鏁堟灉涓嶄匠锛岀畝鍖栦负 RMS 鈫?aa
+    const lipSyncScale = useVRMControl.getState().lipSyncScale || 0.5;
+    
+    const aa = normalizedVolume > 0.05 
+      ? Math.min(1, normalizedVolume * lipSyncScale * 2)
+      : 0;
+    
+    // 鍏朵粬鍏冮煶淇濇寔绠€鍖?    const ih = 0;
+    const ee = 0;
+    const oh = 0;
+    const ou = 0;
+    
+    // 鐩存帴鍙戦€侊紙涓嶅仛骞虫粦锛岀敱 VRM 绔鐞嗭級
+    lipSyncCallbackRef.current({ aa, ih, ee, oh, ou });
+
+    if (audioRef.current && !audioRef.current.paused) {
+      animationFrameRef.current = requestAnimationFrame(analyzeAudio);
+    }
+  }, []);
+
+  const initAudioAnalyzer = useCallback((audioElement) => {
+    try {
+      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      analyserRef.current = audioContextRef.current.createAnalyser();
+      analyserRef.current.fftSize = 1024;  // 鎻愰珮鍒?1024 鑾峰彇鏇寸簿缁嗙殑棰戣氨
+      analyserRef.current.smoothingTimeConstant = 0.9;  // 鎻愰珮骞虫粦搴?      const source = audioContextRef.current.createMediaElementSource(audioElement);
+      source.connect(analyserRef.current);
+      analyserRef.current.connect(audioContextRef.current.destination);
+    } catch (err) {
+      console.warn('Audio analyzer init failed:', err);
+    }
+  }, []);
+
+  const speak = useCallback(async (text, onPlay) => {
+    if (!text || isSpeaking) return;
+    
+    const cleanText = text.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '')
+      .replace(/[^\u4e00-\u9fa5a-zA-Z0-9\s,.!?锛屻€傦紒锛熴€佲€︹€擼/g, '');
+    
+    setIsSpeaking(true);
+    setError(null);
+    
+    try {
+      // 鍏堣缃ā鍨嬫潈閲?(鍙€夛紝濡傛灉鏈嶅姟宸茶缃垯璺宠繃)
+      try {
+        await fetch('/set_gpt_weights?weights_path=GPT_weights_v2Pro/鍙帀_ZH-e10.ckpt', { 
+          signal: AbortSignal.timeout(10000) 
+        });
+        console.log('馃帳 妯″瀷宸茶缃?);
+      } catch (e) {
+        console.log('馃帳 妯″瀷璁剧疆璺宠繃鎴栧凡瀛樺湪');
+      }
+      
+      // api_v2.py 鍙傛暟
+      const params = new URLSearchParams({
+        text: cleanText, 
+        text_lang: 'zh', 
+        ref_audio_path: REF_AUDIO,
+        prompt_text: '鐜╁緱澶紑蹇冨繕蹇樺湪鑴戝悗浜?, 
+        prompt_lang: 'zh',
+        speed_factor: 1.0,
+      });
+      
+      console.log('馃帳 TTS 璇锋眰:', Object.fromEntries(params);
+      
+      // 璇锋眰 /tts 绔偣
+      const response = await fetch(`/tts?${params}`, { signal: AbortSignal.timeout(120000) });
+      if (!response.ok) throw new Error(`TTS failed: ${response.status}`);
+      
+      const audioBlob = await response.blob();
+      console.log('馃帳 TTS 鍝嶅簲:', audioBlob.size, 'bytes');
+      const audioUrl = URL.createObjectURL(audioBlob);
+      
+      if (audioRef.current) audioRef.current.pause();
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+      
+      audioRef.current = new Audio(audioUrl);
+      
+      // 纭繚 AudioContext 鍜?Analyser 瀛樺湪
+      if (!audioContextRef.current) {
+        initAudioAnalyzer(audioRef.current);
+      } else if (audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume();
+      }
+      
+      // 閲嶆柊杩炴帴闊抽婧愬埌鍒嗘瀽鍣紙姣忔鎾斁閮介渶瑕侊級
+      if (audioContextRef.current && analyserRef.current) {
+        try {
+          // 妫€鏌ユ槸鍚﹀凡缁忚繛鎺ワ紙闃叉閲嶅杩炴帴閿欒锛?          // 濡傛灉闇€瑕侊紝鍙互鏂紑鏃ц繛鎺?          const source = audioContextRef.current.createMediaElementSource(audioRef.current);
+          source.connect(analyserRef.current);
+          analyserRef.current.connect(audioContextRef.current.destination);
+          console.log('馃攰 闊抽鍒嗘瀽鍣ㄥ凡杩炴帴');
+        } catch (e) {
+          // 鍙兘鏄?AudioElementSource 宸茬粡杩炴帴锛堟祻瑙堝櫒闄愬埗锛?          console.log('馃攰 闊抽婧愬凡瀛樺湪锛岃烦杩囪繛鎺?);
+        }
+      } else {
+        console.warn('鈿狅笍 AudioContext 鎴?Analyser 鏈氨缁?);
+      }
+      
+      audioRef.current.onplay = () => {
+        if (audioContextRef.current?.state === 'suspended') audioContextRef.current.resume();
+        if (onPlay) onPlay();
+        if (lipSyncCallbackRef.current && analyserRef.current) {
+          if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+          animationFrameRef.current = requestAnimationFrame(analyzeAudio);
+        }
+      };
+      
+      audioRef.current.onended = () => {
+        setIsSpeaking(false);
+        URL.revokeObjectURL(audioUrl);
+        if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+        // TTS 缁撴潫鏃朵笉鍋氫换浣曞鐞嗭紝璁?VRMAvatar 鍒ゆ柇 hasTtsData
+        // 瑙﹀彂琛ㄦ儏鎭㈠锛堥€氳繃鍏ㄥ眬浜嬩欢锛?        window.dispatchEvent(new CustomEvent('ttsEnded'));
+      };
+      
+      audioRef.current.onerror = () => {
+        setIsSpeaking(false);
+        setError('Playback failed');
+        URL.revokeObjectURL(audioUrl);
+        if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+      };
+      
+      await audioRef.current.play();
+    } catch (err) {
+      setError(err.message);
+      setIsSpeaking(false);
+    }
+  }, [isSpeaking, initAudioAnalyzer, analyzeAudio]);
+
+  const stop = useCallback(() => {
+    if (audioRef.current) audioRef.current.pause();
+    if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+    if (lipSyncCallbackRef.current) lipSyncCallbackRef.current({ aa: 0, ih: 0, ee: 0, oh: 0, ou: 0 });
+    setIsSpeaking(false);
+  }, []);
+
+  return { speak, stop, isSpeaking, setIsSpeaking, error, initModel, setLipSyncCallback };
+}
+

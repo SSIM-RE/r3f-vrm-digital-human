@@ -1,0 +1,13 @@
+# Flask web framework
+flask==3.0.0
+flask-cors==4.0.0
+
+# WebSocket
+ws==1.0.1
+
+# Core dependencies
+numpy>=1.20.0
+torch>=2.0.0
+
+# Faster Whisper (不包含 av 依赖)
+faster-whisper==1.0.3
