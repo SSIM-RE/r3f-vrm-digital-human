@@ -45,6 +45,9 @@ export const useVRMControl = create((set, get) => ({
   // 渐变速度（每秒变化量）
   transitionSpeed: 3,
   
+  // 动作切换淡入淡出时间（秒）
+  animationFadeTime: 1.5,
+  
   // 口型同步缩放
   lipSyncScale: 0.25,
   
@@ -218,6 +221,12 @@ export const useVRMControl = create((set, get) => ({
   
   // 设置表情幅度限制
   setMaxEmotionScale: (scale) => set({ maxEmotionScale: scale }),
+  
+  // 设置表情过渡速度
+  setTransitionSpeed: (speed) => set({ transitionSpeed: speed }),
+  
+  // 设置动作切换淡入淡出时间
+  setAnimationFadeTime: (time) => set({ animationFadeTime: time }),
   
   // 设置位置
   setPosition: (pos) => set({ position: pos }),

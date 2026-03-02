@@ -30,7 +30,7 @@ export const VRMAvatar = ({ avatar, animation, ...props }) => {
   // 需要先定义 effectiveAnimation 来决定加载哪个动画
   
   // 获取 AI 控制状态
-  const { expressions, targetExpressions, lipSyncExpressions, lookAtMouse: aiLookAtMouse, executeCommand, executeAction, setTargetExpressions, updateExpressions, animation: aiAnimation, maxEmotionScale } = useVRMControl();
+  const { expressions, targetExpressions, lipSyncExpressions, isSpeaking, lookAtMouse: aiLookAtMouse, executeCommand, executeAction, setTargetExpressions, updateExpressions, animation: aiAnimation, maxEmotionScale, transitionSpeed, animationFadeTime } = useVRMControl();
   
   // AI 动作优先
   const effectiveAnimation = aiAnimation ? aiAnimation : animation;
@@ -177,7 +177,7 @@ export const VRMAvatar = ({ avatar, animation, ...props }) => {
   });
   
   // 口型同步设置
-  const { setLipSyncScale, setAiMouthWeight, setMaxEmotionScale } = useVRMControl();
+  const { setLipSyncScale, setAiMouthWeight, setMaxEmotionScale, setTransitionSpeed, setAnimationFadeTime } = useVRMControl();
   
   useControls("口型同步", {
     lipSyncScale: { 
@@ -203,6 +203,22 @@ export const VRMAvatar = ({ avatar, animation, ...props }) => {
       step: 0.1,
       onChange: (v) => setMaxEmotionScale(v),
       label: "表情上限"
+    },
+    transitionSpeed: {
+      value: 3,
+      min: 0.5,
+      max: 10,
+      step: 0.5,
+      onChange: (v) => setTransitionSpeed(v),
+      label: "表情过渡速度"
+    },
+    animationFadeTime: {
+      value: 1.5,
+      min: 0.1,
+      max: 3,
+      step: 0.1,
+      onChange: (v) => setAnimationFadeTime(v),
+      label: "动作过渡时间"
     },
   });
 
@@ -301,12 +317,16 @@ export const VRMAvatar = ({ avatar, animation, ...props }) => {
     // If targeting Idle or None, ensure Idle continues running
     if (!targetAnimation || targetAnimation === 'None' || targetAnimation === idleAnimation) {
 
-      // Ensure Idle continues (skip T-pose)
-      if (!idleAction.isRunning()) {
-        const idleDuration = idleAction.getClip().duration;
-        idleAction.reset().fadeIn(0.5).play();
-        idleAction.time = Math.min(0.05, idleDuration * 0.01);
+      // Fade out current action (if any)
+      if (animationStateRef.current.currentAction) {
+        animationStateRef.current.currentAction.fadeOut(animationFadeTime).play();
+        animationStateRef.current.currentAction = null;
       }
+      
+      // Fade in Idle
+      const idleDuration = idleAction.getClip().duration;
+      idleAction.reset().fadeIn(animationFadeTime).play();
+      idleAction.time = Math.min(0.05, idleDuration * 0.01);
       return;
     }
     
@@ -316,16 +336,16 @@ export const VRMAvatar = ({ avatar, animation, ...props }) => {
     if (action) {
       // Fade out previous action
       if (animationStateRef.current.currentAction) {
-        animationStateRef.current.currentAction.fadeOut(0.5);
+        animationStateRef.current.currentAction.fadeOut(animationFadeTime).play();
       }
       
       // Crossfade from Idle (keep Idle running, just reduce weight)
-      idleAction.fadeOut(0.5);
+      idleAction.fadeOut(animationFadeTime).play();
       
       // Skip first frame and play
       const clipDuration = action.getClip().duration;
       const startTime = Math.min(0.05, clipDuration * 0.01);
-      action.reset().fadeIn(0.5);
+      action.reset().fadeIn(animationFadeTime);
       action.time = startTime;
       action.play();
       
@@ -443,17 +463,9 @@ export const VRMAvatar = ({ avatar, animation, ...props }) => {
 
     // 嘴型和眨眼
     if (!videoElement) {
-      // 检查 TTS 是否有有效口型数据
-      const hasTtsData = lipSyncExpressions && (
-        lipSyncExpressions.aa > 0.01 || 
-        lipSyncExpressions.ih > 0.01 || 
-        lipSyncExpressions.ee > 0.01 || 
-        lipSyncExpressions.oh > 0.01 || 
-        lipSyncExpressions.ou > 0.01
-      );
-      
-      // 只有 TTS 播放时才处理嘴巴，让 VRM 自动处理 AI 表情的嘴巴映射
-      if (hasTtsData) {
+      // TTS 口型控制
+      if (isSpeaking) {
+        // TTS 播放：AI 表情 + TTS 口型叠加
         const mouthShapes = [
           { name: "aa", source: lipSyncExpressions.aa || 0 },
           { name: "ih", source: lipSyncExpressions.ih || 0 },
@@ -465,6 +477,9 @@ export const VRMAvatar = ({ avatar, animation, ...props }) => {
         mouthShapes.forEach(item => {
           lerpExpression(item.name, item.source, delta * 30);
         });
+      } else {
+        // TTS 停止：切换到 neutral（使用 setTargetExpressions 触发渐变过渡）
+        setTargetExpressions({ neutral: 1 });
       }
     } else {
       if (riggedFace.current) {

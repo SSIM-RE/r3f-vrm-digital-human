@@ -1,7 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 
-set "PROJECT_DIR=D:\AI\OpenClaw\r3f-vrm-final-main"
+set "PROJECT_DIR=D:\projects\r3f-vrm-final-main"
 set "SERVER_DIR=%PROJECT_DIR%\server"
 set "GPT_DIR=D:\AI\OpenClaw\GPT-SoVITS-v2pro-20250604"
 set "PYTHON=C:\Users\Miss\AppData\Local\Programs\Python\Python310\python.exe"
