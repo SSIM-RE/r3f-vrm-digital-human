@@ -21,8 +21,8 @@ export const Experience = () => {
     avatarHeight, groundHeight
   } = useControls("VRM", {
     avatar: {
-      value: vrmOptions[0] || "3859814441197244330.vrm",
-      options: vrmOptions.length > 0 ? vrmOptions : ["3859814441197244330.vrm"],
+      value: "Mico_V2.vrm",
+      options: vrmOptions.length > 0 ? vrmOptions : ["Mico_V2.vrm"],
     },
     animation: {
       value: "Breathing Idle",

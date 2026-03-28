@@ -35,3 +35,9 @@ coverage/
 
 # Misc
 *.log
+
+# Project specific - Debug/Test files
+*.json(不包含package.json)
+*.pyc
+__pycache__/
+.pytest_cache/

@@ -8,11 +8,95 @@ import { Euler, Object3D, Quaternion, Vector3 } from "three";
 import { lerp } from "three/src/math/MathUtils.js";
 import { useVideoRecognition } from "../hooks/useVideoRecognition";
 import { remapMixamoAnimationToVrm } from "../utils/remapMixamoAnimationToVrm";
+import { captureVRMDirs, initStandardTPose } from "../utils/dipAnimator";
 import { useVRMControl } from "../stores/useVRMControl";
 
 const tmpVec3 = new Vector3();
 const tmpQuat = new Quaternion();
 const tmpEuler = new Euler();
+
+// 22个 VRM 标准骨骼名称
+const VRM_BONE_NAMES = [
+  'hips', 'spine', 'chest', 'neck', 'head',
+  'leftUpperArm', 'leftLowerArm', 'leftHand',
+  'rightUpperArm', 'rightLowerArm', 'rightHand',
+  'leftUpperLeg', 'leftLowerLeg', 'leftFoot',
+  'rightUpperLeg', 'rightLowerLeg', 'rightFoot',
+  'leftEye', 'rightEye', 'jaw', 'leftToes', 'rightToes'
+];
+
+// 调试函数：每一帧输出所有骨骼数据
+function debugOutputBones(vrm, riggedPose, frameCount) {
+  if (!vrm) return;
+  
+  const hmlData = {};
+  const vrmPositionData = {};
+  const vrmRotationData = {};
+  
+  // 获取 VRM 骨骼的世界位置和旋转
+  VRM_BONE_NAMES.forEach(boneName => {
+    const bone = vrm.humanoid.getNormalizedBoneNode(boneName);
+    if (bone) {
+      // VRM 世界位置
+      const worldPos = new Vector3();
+      bone.getWorldPosition(worldPos);
+      vrmPositionData[boneName] = { x: worldPos.x.toFixed(4), y: worldPos.y.toFixed(4), z: worldPos.z.toFixed(4) };
+      
+      // VRM 骨骼旋转 (四元数)
+      const worldQuat = new Quaternion();
+      bone.getWorldQuaternion(worldQuat);
+      vrmRotationData[boneName] = { 
+        x: worldQuat.x.toFixed(4), 
+        y: worldQuat.y.toFixed(4), 
+        z: worldQuat.z.toFixed(4), 
+        w: worldQuat.w.toFixed(4) 
+      };
+    }
+  });
+  
+  // 获取 HML (MediaPipe Pose) 骨骼位置
+  if (riggedPose && riggedPose.current) {
+    const pose = riggedPose.current;
+    // HML 22个骨骼位置
+    const hmlBones = [
+      'Hips', 'Spine', 'Chest', 'Neck', 'Head',
+      'LeftUpperArm', 'LeftLowerArm', 'LeftHand',
+      'RightUpperArm', 'RightLowerArm', 'RightHand',
+      'LeftUpperLeg', 'LeftLowerLeg', 'LeftFoot',
+      'RightUpperLeg', 'RightLowerLeg', 'RightFoot',
+      'LeftEye', 'RightEye', 'Jaw', 'LeftToes', 'RightToes'
+    ];
+    
+    hmlBones.forEach(boneName => {
+      if (pose[boneName]) {
+        const h = pose[boneName];
+        // 位置可能在 rotation 或直接是 Vector3
+        if (h.position) {
+          hmlData[boneName] = { 
+            x: h.position.x.toFixed(4), 
+            y: h.position.y.toFixed(4), 
+            z: h.position.z.toFixed(4) 
+          };
+        } else if (h.x !== undefined) {
+          hmlData[boneName] = { 
+            x: h.x.toFixed(4), 
+            y: h.y.toFixed(4), 
+            z: h.z.toFixed(4) 
+          };
+        }
+      }
+    });
+  }
+  
+  // 每一帧都输出
+  console.log(`=== Frame ${frameCount} 骨骼调试信息 ===`);
+  console.log('--- HML 骨骼位置 (22个) ---');
+  console.table(hmlData);
+  console.log('--- VRM 世界位置 (22个) ---');
+  console.table(vrmPositionData);
+  console.log('--- VRM 骨骼旋转 (四元数) ---');
+  console.table(vrmRotationData);
+}
 
 export const VRMAvatar = ({ avatar, animation, ...props }) => {
   const { scene, userData } = useGLTF(
@@ -93,6 +177,14 @@ export const VRMAvatar = ({ avatar, animation, ...props }) => {
     const vrm = userData.vrm;
     console.log("VRM loaded:", vrm);
     console.log("VRM version:", vrm.meta?.metaVersion);
+    
+    // 暴露 VRM 实例给全局（用于 DiP 动作测试）
+    window.vrmInstance = vrm
+    window.vrmForDip = { current: vrm }
+    
+    // 使用预定义的标准 T-Pose 数据（不需要动态捕获）
+    initStandardTPose()
+    console.log('[VRMAvatar] Using standard T-Pose for DiP')
     
     VRMUtils.removeUnnecessaryVertices(scene);
     VRMUtils.combineSkeletons(scene);
@@ -378,8 +470,17 @@ export const VRMAvatar = ({ avatar, animation, ...props }) => {
     bone.quaternion.slerp(tmpQuat, slerpFactor);
   };
 
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     if (!userData.vrm) return;
+    
+    // 如果正在播放 DiP 动作，完全跳过所有更新
+    if (window.vrmForDipPlaying) {
+      return;
+    }
+    
+    // // ========== 骨骼调试输出 (每一帧) ==========
+    // debugOutputBones(userData.vrm, riggedPose, state.clock.elapsedTime.toFixed(2));
+    // // ========== 调试输出结束 ==========
     
     // ========== 随机眨眼逻辑 ==========
     blinkTimer.current += delta;
@@ -571,21 +672,10 @@ export const VRMAvatar = ({ avatar, animation, ...props }) => {
   // 检测 VRM 版本
   const isVRM1 = userData.vrm?.meta?.metaVersion === "1";
   
-  // VRM 1.0 模型朝向处理
-  const getRotationY = () => {
-    if (isVRM1) {
-      // VRM 1.0 默认面向前
-      return 0;
-    }
-    // VRM 0.x 需要翻转
-    return avatar === "3636451243928341470.vrm" ? 0 : Math.PI;
-  };
-
   return (
     <group {...props}>
       <primitive
         object={scene}
-        rotation-y={getRotationY()}
       />
     </group>
   );

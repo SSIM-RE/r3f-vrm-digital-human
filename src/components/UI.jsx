@@ -3,7 +3,31 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useAudioRecorder } from "../hooks/useAudioRecorder";
 import { useTTS } from "../hooks/useTTS";
+import { useDipMotion } from "../hooks/useDipMotion";
 import { useVRMControl } from "../stores/useVRMControl";
+import { applyDipFrame, initStandardTPose, vrmTPoseDirs } from "../utils/dipAnimator";
+
+// 加载本地 NPY 文件（与 vrm-bone-test 相同）
+const loadLocalMotion = async (filename) => {
+  try {
+    const response = await fetch(`/models/${filename}`)
+    const data = await response.json()
+    
+    // 只翻转 Z 轴（与 vrm-bone-test 一致）
+    const flippedData = data.map(frame => {
+      return frame.map(joint => {
+        const [x, y, z] = joint
+        return [x, y, -z]
+      })
+    })
+    
+    console.log('[UI] Loaded local motion:', filename, '- frames:', flippedData.length)
+    return flippedData
+  } catch (err) {
+    console.error('[UI] Load error:', err)
+    return null
+  }
+}
 
 // 快捷短语
 const quickPhrases = [
@@ -32,16 +56,23 @@ const parseMicoResponse = (responseText) => {
   }
   try {
     const parsed = JSON.parse(cleanText);
+    // 兼容旧版 action 和新版 actions
+    let actions = parsed.actions || [];
+    // 如果没有 actions 字段但有 action 字段，转换为数组
+    if (actions.length === 0 && parsed.action && parsed.action !== 'none') {
+      actions = [parsed.action];
+    }
     return {
       voiceText: parsed.voiceText || parsed.text || parsed.message || '',  // 语音说的
       text: parsed.text || '',  // 详细文本展示
-      action: parsed.action || 'none',
+      actions: actions,  // 新版：动作数组
+      action: parsed.action || 'none',  // 旧版：单个动作（兼容）
       emotion: parsed.emotion || null,
       expressions: parsed.expressions || null
     };
   } catch (e) {
     // 纯文本 fallback
-    return { voiceText: responseText, text: responseText, action: 'none', emotion: null, expressions: null };
+    return { voiceText: responseText, text: responseText, actions: [], action: 'none', emotion: null, expressions: null };
   }
 };
 
@@ -66,6 +97,158 @@ export const UI = () => {
   // TTS 功能
   const { speak: ttsSpeak, isSpeaking, initModel: initTTS, setIsSpeaking: setTtsSpeaking, setLipSyncCallback } = useTTS();
   const { setLipSyncExpressions, executeAction, setTargetExpressions, setIsSpeaking } = useVRMControl();
+  
+  // DiP 动作生成功能
+  const { 
+    isGenerating: isDipGenerating, 
+    generateByAction: dipGenerateByAction,
+    play: dipPlay,
+    stop: dipStop,
+  } = useDipMotion();
+  
+  // 测试 DiP 动作（从本地文件加载）- 完全按照 vrm-bone-test 的方式
+  const [dipPlaying, setDipPlaying] = useState(false)
+  const dipFrameRef = useRef(0)
+  const dipIntervalRef = useRef(null)
+  const dipMotionDataRef = useRef(null)
+  
+  // 测试 DiP 动作生成
+  const testDipAction = async (actionName) => {
+    console.log('[UI] Testing DiP action:', actionName)
+    try {
+      const motion = await dipGenerateByAction(actionName)
+      console.log('[UI] DiP motion.motion[0][0]:', motion?.motion?.[0]?.[0])
+      if (motion && motion.motion) {
+        dipMotionDataRef.current = motion.motion
+        dipFrameRef.current = 0
+        setDipPlaying(true)
+      }
+    } catch (err) {
+      console.error('[UI] DiP test error:', err)
+    }
+  }
+  
+  // 存储上一次的动作序列（用于连续过渡）
+  const lastActionsRef = useRef([])
+  
+  // 测试 DiP 连续动作序列生成
+  const testDipSequence = async (prompts) => {
+    console.log('[UI] Testing DiP sequence:', prompts)
+    console.log('[UI] Last actions:', lastActionsRef.current)
+    
+    const finalPrompts = prompts
+    
+    console.log('[UI] Final prompts:', finalPrompts)
+    
+    try {
+      const response = await fetch('/api/generate_sequence', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          prompts: finalPrompts
+        })
+      })
+      
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`)
+      }
+      
+      const data = await response.json()
+      console.log('[UI] DiP sequence result:', {
+        frames: data.frames,
+        segments: data.segments,
+        firstFrame: data.motion?.[0]?.[0]
+      })
+      
+      if (data.motion) {
+        // 保存 lastActionsRef 供调试用
+        lastActionsRef.current = prompts
+        
+        dipMotionDataRef.current = data.motion
+        dipFrameRef.current = 0
+        setDipPlaying(true)
+      }
+    } catch (err) {
+      console.error('[UI] DiP sequence test error:', err)
+    }
+  }
+  
+  // 播放 DiP 动画（使用 useEffect + setInterval，与 vrm-bone-test 完全一致）
+  useEffect(() => {
+    if (dipPlaying && dipMotionDataRef.current && window.vrmInstance) {
+      console.log('[UI] Starting DiP playback via useEffect, total frames:', dipMotionDataRef.current.length)
+      console.log('[UI] VRM Instance:', !!window.vrmInstance)
+      console.log('[UI] VRM humanoid:', !!window.vrmInstance.humanoid)
+      console.log('[UI] First frame sample:', dipMotionDataRef.current[0]?.[0])
+      
+      // 设置标志
+      window.vrmForDipPlaying = true
+      
+      dipIntervalRef.current = setInterval(() => {
+        const f = dipFrameRef.current
+        const totalFrames = dipMotionDataRef.current.length
+        
+        if (f % 20 === 0) {
+          console.log('[UI] Playing frame:', f)
+        }
+        
+        // 与 vrm-bone-test 完全一致的调用方式
+        if (window.vrmInstance) {
+          applyDipFrame(dipMotionDataRef.current[f], window.vrmInstance)
+        }
+        
+        // 推进到下一帧
+        dipFrameRef.current = f + 1
+        
+        // 播放完成所有帧后停止（而不是循环）
+        if (dipFrameRef.current >= totalFrames) {
+          console.log('[UI] DiP playback complete, frames:', totalFrames)
+          window.vrmForDipPlaying = false
+          setDipPlaying(false)
+          if (dipIntervalRef.current) {
+            clearInterval(dipIntervalRef.current)
+            dipIntervalRef.current = null
+          }
+        }
+      }, 50) // 20fps = 50ms
+    }
+    
+    return () => {
+      if (dipIntervalRef.current) {
+        clearInterval(dipIntervalRef.current)
+      }
+    }
+  }, [dipPlaying])
+  
+  // 加载本地动作并开始播放
+  const testLocalMotion = async (filename) => {
+    console.log('[UI] testLocalMotion:', filename)
+    
+    // 等待 VRM 和 hmlToVrm 准备好
+    if (!window.vrmInstance || !window.hmlToVrm) {
+      console.log('[UI] VRM not ready')
+      return
+    }
+    
+    // 等待 1.5 秒确保准备好
+    await new Promise(r => setTimeout(r, 1500))
+    
+    // 加载动作数据
+    const motionData = await loadLocalMotion(filename)
+    if (!motionData) {
+      console.log('[UI] Failed to load motion')
+      return
+    }
+    
+    console.log('[UI] Motion loaded:', motionData.length, 'frames')
+    
+    // 保存到 ref
+    dipMotionDataRef.current = motionData
+    dipFrameRef.current = 0
+    
+    // 开始播放
+    setDipPlaying(true)
+  }
   
   // 初始化 TTS 模型
   useEffect(() => {
@@ -150,12 +333,24 @@ export const UI = () => {
         }
         
         // 执行动作和表情的函数（延迟到音频播放时执行）
-        const executeOnPlay = () => {
-          if (micoResponse.action && micoResponse.action !== 'none') {
+        const executeOnPlay = async () => {
+          const actions = micoResponse.actions || [];
+          
+          // 设置表情
+          setTargetExpressions(expressions);
+          
+          // 如果有动作，执行动作
+          if (actions.length > 0) {
+            console.log('🎬 执行动作序列:', actions);
+            try {
+              await testDipSequence(actions);
+            } catch (err) {
+              console.error('❌ 动作执行失败:', err);
+            }
+          } else if (micoResponse.action && micoResponse.action !== 'none') {
+            // 兼容旧版：单个动作
+            console.log('🎬 执行单个动作:', micoResponse.action);
             executeAction(micoResponse.action, expressions);
-          } else {
-            // 没有动作或 action 是 none 时，只设置表情
-            setTargetExpressions(expressions);
           }
         };
         
@@ -365,6 +560,40 @@ export const UI = () => {
           <span className="text-white font-medium text-lg">Mico</span>
           <span className="text-cyan-400/80 text-xs">私人助理</span>
         </div>
+        
+        {/* DiP 测试按钮 */}
+        <div className="ml-4 flex gap-2">
+          <button
+            onClick={() => testDipAction('wave')}
+            disabled={isDipGenerating}
+            className="px-3 py-1 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 text-white text-xs rounded transition-colors"
+          >
+            {isDipGenerating ? '生成中...' : '单动作'}
+          </button>
+          <button
+            onClick={() => testDipSequence(['wave', 'nod'])}
+            disabled={isDipGenerating}
+            className="px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white text-xs rounded transition-colors"
+          >
+            {isDipGenerating ? '生成中...' : '连续2动作'}
+          </button>
+          <button
+            onClick={() => testDipSequence(['wave', 'nod', 'shake'])}
+            disabled={isDipGenerating}
+            className="px-3 py-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white text-xs rounded transition-colors"
+          >
+            连续3动作
+          </button>
+          <button
+            onClick={() => {
+              setDipPlaying(false)
+              window.vrmForDipPlaying = false
+            }}
+            className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded transition-colors"
+          >
+            停止
+          </button>
+        </div>
       </div>
 
       {/* 右上角 - 时间 + 天气 */}
@@ -403,6 +632,93 @@ export const UI = () => {
 
       {/* 左侧 - 工具栏 */}
       <div className="absolute left-4 top-1/2 -translate-y-1/2 flex flex-col gap-3 pointer-events-auto">
+        
+        {/* 本地动作测试 */}
+        <div className="flex flex-col items-center gap-2 bg-black/40 backdrop-blur-sm px-4 py-3 rounded-2xl border border-white/5 hover:border-white/20 transition-colors">
+          <div className="text-white/80 text-xs mb-1">🎬 动作测试</div>
+          <button
+            onClick={() => testLocalMotion('tpose_all.json')}
+            className="px-3 py-2 bg-cyan-500/80 hover:bg-cyan-500 text-white text-xs rounded-lg transition-colors"
+          >
+            加载 tpose
+          </button>
+          <button
+            onClick={() => testLocalMotion('walks_from_npy.json')}
+            className="px-3 py-2 bg-blue-500/80 hover:bg-blue-500 text-white text-xs rounded-lg transition-colors"
+          >
+            加载 walks(npy)
+          </button>
+          
+          {/* DiP 动作生成输入 */}
+          <input
+            type="text"
+            id="dipPrompt"
+            placeholder="输入动作描述..."
+            className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-xs placeholder-white/40 focus:outline-none focus:border-cyan-500"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                const prompt = e.target.value.trim()
+                if (prompt) {
+                  testDipAction(prompt)
+                  e.target.value = ''
+                }
+              }
+            }}
+          />
+          <button
+            onClick={() => {
+              const input = document.getElementById('dipPrompt')
+              const prompt = input?.value?.trim()
+              if (prompt) {
+                testDipAction(prompt)
+                input.value = ''
+              }
+            }}
+            className="px-3 py-2 bg-purple-500/80 hover:bg-purple-500 text-white text-xs rounded-lg transition-colors w-full"
+          >
+            生成单动作
+          </button>
+          
+          {/* 连续动作输入 */}
+          <div className="mt-2 pt-2 border-t border-white/10">
+            <input
+              type="text"
+              id="dipSequencePrompt"
+              placeholder="动作1,动作2..."
+              className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-xs placeholder-white/40 focus:outline-none focus:border-cyan-500"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const value = e.target.value.trim()
+                  if (value) {
+                    const prompts = value.split(',').map(p => p.trim()).filter(p => p)
+                    if (prompts.length > 0) {
+                      testDipSequence(prompts)
+                      e.target.value = ''
+                    }
+                  }
+                }
+              }}
+            />
+            <button
+              onClick={() => {
+                const input = document.getElementById('dipSequencePrompt')
+                const value = input?.value?.trim()
+                if (value) {
+                  const prompts = value.split(',').map(p => p.trim()).filter(p => p)
+                  if (prompts.length > 0) {
+                    testDipSequence(prompts)
+                    input.value = ''
+                  }
+                }
+              }}
+              className="px-3 py-2 bg-green-500/80 hover:bg-green-500 text-white text-xs rounded-lg transition-colors w-full mt-1"
+            >
+              生成连续动作
+            </button>
+          </div>
+          
+          {isDipGenerating && <span className="text-yellow-400 text-xs">生成中...</span>}
+        </div>
         {/* 语音状态 */}
         <div className="flex flex-col items-center gap-2 bg-black/40 backdrop-blur-sm px-4 py-3 rounded-2xl border border-white/5 hover:border-white/20 transition-colors group">
           <div 

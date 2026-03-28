@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { useVRMControl } from '../stores/useVRMControl';
 
 const API_URL = '/tts';
-const REF_AUDIO = 'D:\\ref_v2.wav';
+const REF_AUDIO = 'D:\\AI\\OpenClaw\\GPT-SoVITS-v2pro-20250604\\ref_audio\\koli_ref.wav';
 
 export function useTTS() {
   const [isSpeaking, setIsSpeaking] = useState(false);

@@ -17,6 +17,11 @@ export default defineConfig({
       '/tts': {
         target: 'http://127.0.0.1:9880',
         changeOrigin: true,
+      },
+      // DiP 动作生成代理
+      '/api': {
+        target: 'http://127.0.0.1:5002',
+        changeOrigin: true,
       }
     }
   },
