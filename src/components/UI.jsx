@@ -772,7 +772,7 @@ export const UI = () => {
                   >
                     {todo.done && <span className="text-white text-xs">✓</span>}
                   </button>
-                  <span className={`flex-1 text-sm transition-all ${todo.done ? "text-white/40 line-through" : "text-white/90"}`}>
+                  <span className={`flex-1 text-sm transition-all truncate ${todo.done ? "text-white/40 line-through" : "text-white/90"}`}>
                     {todo.text}
                   </span>
                   {todo.urgent && !todo.done && (
