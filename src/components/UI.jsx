@@ -17,10 +17,10 @@ const quickPhrases = [
 
 // 模拟待办事项
 const defaultTodos = [
-  { id: 1, text: "准备面试作品集", done: false, urgent: true },
-  { id: 2, text: "学习 Three.js", done: true, urgent: false },
-  { id: 3, text: "更新博客", done: false, urgent: false },
-  { id: 4, text: "健身 30 分钟", done: false, urgent: true },
+  { id: 1, text: "准备面试作品集", done: false, urgent: true, deadline: "2026-03-29" },
+  { id: 2, text: "学习 Three.js", done: true, urgent: false, deadline: null },
+  { id: 3, text: "更新博客", done: false, urgent: false, deadline: "2026-03-30" },
+  { id: 4, text: "健身 30 分钟", done: false, urgent: true, deadline: "今天" },
 ];
 
 // 解析 Mico VRM 的回复（支持两种动作格式）
@@ -666,13 +666,19 @@ export const UI = () => {
                   >
                     {todo.done && <span className="text-white text-xs">✓</span>}
                   </button>
-                  <span className={`flex-1 text-sm transition-all ${
-                    todo.done ? "text-white/40 line-through" : "text-white/90"
-                  }`}>
+                  <span className={`flex-1 text-sm transition-all ${todo.done ? "text-white/40 line-through" : "text-white/90"}`}>
                     {todo.text}
                   </span>
                   {todo.urgent && !todo.done && (
                     <span className="px-2 py-0.5 bg-red-500/20 text-red-400 text-xs rounded-full">紧急</span>
+                  )}
+                  {todo.deadline && !todo.done && (
+                    <span className={`px-2 py-0.5 text-xs rounded-full ${
+                      todo.deadline === '今天' ? 'bg-orange-500/20 text-orange-400' : 
+                      'bg-white/10 text-white/50'
+                    }`}>
+                      {todo.deadline}
+                    </span>
                   )}
                   <button 
                     onClick={() => deleteTodo(todo.id)}
