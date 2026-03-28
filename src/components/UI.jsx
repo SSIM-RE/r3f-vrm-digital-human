@@ -214,7 +214,7 @@ export const UI = () => {
     });
   };
   
-  // 处理录音数据
+  // 处理录音数据 - 统一使用文本输入的处理逻辑
   useEffect(() => {
     if (audioBlob) {
       console.log('📦 收到录音数据:', audioBlob.size, 'bytes');
@@ -235,7 +235,7 @@ export const UI = () => {
         const text = data.text || '（未能识别）';
         setTranscript(text);
         
-        // 发送新消息时清空之前的回复
+        // 清空之前的回复
         setAiReply("");
         setAiReplyDetail("");
         
@@ -243,7 +243,7 @@ export const UI = () => {
         const requestBody = {
           model: "openclaw:mico-vrm",
           input: text,
-          user: sessionKey  // 保持会话上下文
+          user: sessionKey
         };
         
         fetch('/v1/responses', {
@@ -258,46 +258,55 @@ export const UI = () => {
         .then(agentData => {
           console.log('🤖 AI 响应:', agentData);
           
-          // 解析 Mico VRM 的 JSON 回复
+          // 解析 Mico VRM 的 JSON 回复（使用统一解析函数）
           const responseText = agentData.output?.[0]?.content?.[0]?.text || '';
+          const micoResponse = parseMicoResponse(responseText);
           
-          try {
-            // 尝试解析 JSON 格式
-            const micoResponse = JSON.parse(responseText);
-            
-            // 显示文本回复（兼容旧格式）
-            const voiceText = micoResponse.voiceText || micoResponse.text || '';
-            const detailText = micoResponse.text || '';
-            
-            if (voiceText) {
-              console.log('📝 Mico 回复:', voiceText);
-              setAiReply(voiceText);
-              setAiReplyDetail(detailText && detailText !== voiceText ? detailText : "");
-            }
-            
-            // 执行动作（支持两种格式）
+          console.log('🔍 AI 原始返回:', responseText);
+          console.log('🔍 解析后:', micoResponse);
+          
+          const voiceText = micoResponse.voiceText;
+          const detailText = micoResponse.text;
+          
+          if (voiceText) {
+            console.log('📝 Mico 简短回复:', voiceText);
+            console.log('📋 Mico 详细回复:', detailText);
+            setAiReply(voiceText);
+            setAiReplyDetail(detailText && detailText !== voiceText ? detailText : "");
+          }
+          
+          // 构建表情对象
+          const expressions = {};
+          if (micoResponse.emotion) {
+            expressions[micoResponse.emotion] = 1;
+          }
+          if (micoResponse.expressions) {
+            Object.assign(expressions, micoResponse.expressions);
+          }
+          
+          // 执行动作和表情（与文本输入相同的逻辑）
+          const executeOnPlay = () => {
             if (micoResponse.actions && micoResponse.actions.length > 0) {
-              // DiP 版本
               testDipSequence(micoResponse.actions);
             } else if (micoResponse.action && micoResponse.action !== 'none') {
-              // 预设版本
-              executeAction(micoResponse.action, micoResponse.expressions);
-            } else if (micoResponse.expressions) {
-              // 没有动作但有表情
-              setTargetExpressions(micoResponse.expressions);
+              executeAction(micoResponse.action, expressions);
+            } else {
+              setTargetExpressions(expressions);
             }
-          } catch (e) {
-            // 如果不是 JSON，直接显示文本
-            setAiReply(responseText);
-            setAiReplyDetail("");
+          };
+          
+          if (voiceText) {
+            ttsSpeak(voiceText, executeOnPlay);
+          } else {
+            executeOnPlay();
           }
         })
         .catch(err => {
           console.error('发送消息失败:', err);
+        })
+        .finally(() => {
+          setVoiceStatus("idle");
         });
-        
-        console.log('📤 已发送到 OpenClaw (HTTP API)');
-        setVoiceStatus("idle");
       })
       .catch(err => {
         console.error('转写失败:', err);
