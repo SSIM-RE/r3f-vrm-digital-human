@@ -50,23 +50,23 @@ python dip/server.py
 
 ## 技术栈
 
-| 技术 | 版本 |
-|------|------|
-| React | 19.0.0 |
-| Three.js | 0.173.0 |
-| React Three Fiber | 9.0.4 |
-| @pixiv/three-vrm | 3.4.0 |
-| Zustand | 5.0.11 |
+| 技术 | 版本 | 用途 |
+|------|------|------|
+| React | 19.0.0 | UI 框架 |
+| Three.js | 0.173.0 | 3D 渲染 |
+| React Three Fiber | 9.0.4 | React + Three.js |
+| @pixiv/three-vrm | 3.4.0 | VRM 模型 |
+| Zustand | 5.0.11 | 状态管理 |
 
 ---
 
 ## 依赖服务
 
-| 服务 | 端点 |
-|------|------|
-| TTS | http://127.0.0.1:9880 |
-| DiP | http://localhost:5002 |
-| Mico Agent | /v1/responses (代理到 18789) |
+| 服务 | 端点 | 说明 |
+|------|------|------|
+| TTS | http://127.0.0.1:9880 | GPT-SoVITS |
+| DiP | http://localhost:5002 | WSL2 动作生成 |
+| Mico Agent | /v1/responses → 18789 | OpenClaw Gateway |
 
 ---
 
@@ -75,22 +75,57 @@ python dip/server.py
 ```
 r3f-vrm-final-main/
 ├── src/              # 前端源码
+│   ├── components/   # React 组件
+│   ├── hooks/        # 自定义 Hooks
+│   ├── stores/       # Zustand 状态
+│   └── utils/        # 工具函数
 ├── server/           # 后端服务
 ├── public/           # VRM 模型 + 动画
 ├── docs/             # 设计文档
-├── package.json
-├── progress.md       # 进度追踪
-├── issues.md         # 问题记录
-└── project-info.md   # 技术信息
+└── package.json
 ```
 
 ---
 
-## 文档
+## 技术要点
 
-- [进度追踪](progress.md)
-- [问题记录](issues.md)
-- [技术信息](project-info.md)
+### VRM 表情叠加
+- VRM 每帧自动清零 + 累加 `morphTargetInfluences`
+- 直接 `setValue` 即可，无需手动计算
+
+### DiP 骨骼转换
+- 翻转 Z 轴
+- 手掌骨骼 = 单位四元数
+- 交换左右手臂索引
+- 跳过前 40 帧（2秒）
+- 单次动作最低 10 秒
+
+---
+
+## 已解决问题
+
+### TTS 表情叠加
+- 使用 `isSpeaking` 判断播放状态
+- VRM 自动累加多个表情
+
+### DiP 动作方向
+- 交换左右手臂索引解决方向反向问题
+- 手掌骨骼设为单位四元数
+
+---
+
+## 待决策
+
+- [ ] 音频播放队列机制
+- [ ] 口型同步算法
+- [ ] 表情预设系统
+
+---
+
+## 风险
+
+- TTS/DiP 服务需手动启动
+- WSL2 环境依赖
 
 ---
 
