@@ -321,12 +321,6 @@ export const UI = () => {
   const [notifications, setNotifications] = useState([
     { id: 1, text: "收到新邮件", time: "2分钟前", unread: true }
   ]);
-  const [music, setMusic] = useState({ 
-    playing: false, 
-    title: "未播放", 
-    artist: "",
-    progress: 0 
-  });
   const [todos, setTodos] = useState(defaultTodos);
   const [showTodos, setShowTodos] = useState(false);
   const [showPanel, setShowPanel] = useState("none");
@@ -408,12 +402,13 @@ export const UI = () => {
     <section className="fixed inset-0 z-10 flex items-center justify-center pointer-events-none">
       {/* 左上角 - Mico 头像 */}
       <div className="absolute top-4 left-4 flex items-center gap-3 pointer-events-auto group">
-        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-cyan-400 to-purple-500 flex items-center justify-center text-2xl shadow-lg shadow-cyan-500/20 hover:scale-110 transition-transform cursor-pointer">
-          🤖
+        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-pink-300 to-purple-400 flex items-center justify-center text-2xl shadow-lg shadow-pink-500/20 hover:scale-110 transition-transform cursor-pointer overflow-hidden">
+          <img src="/models/Mico_V2.vrm" alt="Mico" className="w-full h-full object-cover" onError={(e) => {e.target.style.display='none'; e.target.nextSibling.style.display='flex';}} />
+          <span className="hidden">🎀</span>
         </div>
         <div className="flex flex-col">
           <span className="text-white font-medium text-lg">Mico</span>
-          <span className="text-cyan-400/80 text-xs">私人助理</span>
+          <span className="text-pink-300/80 text-xs">私人助理</span>
         </div>
       </div>
 
@@ -453,30 +448,6 @@ export const UI = () => {
 
       {/* 左侧 - 工具栏 */}
       <div className="absolute left-4 top-1/2 -translate-y-1/2 flex flex-col gap-3 pointer-events-auto">
-
-        {/* 音乐控制 */}
-        <div className="flex flex-col items-center gap-2 bg-black/40 backdrop-blur-sm px-4 py-3 rounded-2xl border border-white/5 hover:border-white/20 transition-colors">
-          <div 
-            className={`w-12 h-12 rounded-full flex items-center justify-center cursor-pointer hover:scale-110 transition-transform ${
-              music.playing ? "bg-green-500 shadow-lg shadow-green-500/50" : "bg-white/10 hover:bg-white/20"
-            }`}
-            onClick={toggleMusic}
-          >
-            {music.playing ? "⏸️" : "▶️"}
-          </div>
-          <div className="text-center">
-            <div className="text-white/80 text-xs truncate max-w-[70px]">{music.title}</div>
-            {music.playing && (
-              <div className="text-white/30 text-[10px]">{music.artist}</div>
-            )}
-          </div>
-          {/* 播放进度条 */}
-          {music.playing && (
-            <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden mt-1">
-              <div className="h-full bg-green-500 rounded-full animate-pulse" style={{ width: "35%" }} />
-            </div>
-          )}
-        </div>
 
         {/* 待办事项 */}
         <div 
