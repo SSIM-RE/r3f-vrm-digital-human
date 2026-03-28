@@ -24,21 +24,43 @@ const defaultTodos = [
 ];
 
 // 解析 Mico VRM 的回复（支持两种动作格式）
-// 格式1: action (单个动作，中文) - 预设动画版本
-// 格式2: actions (动作数组，英文) - DiP 版本
+// 格式1: action (单个动作) - 预设动画版本
+// 格式2: actions (动作数组) - DiP 版本
 const parseMicoResponse = (responseText) => {
   let cleanText = responseText.trim();
-  // 移除 ```json 或 ``` 包裹
+  
+  // 尝试从文本中提取 JSON（处理多种格式）
+  // 1. 移除开头的 ```json 或 ```
   if (cleanText.startsWith('```')) {
     cleanText = cleanText.replace(/^```json?\s*/, '').replace(/\s*```$/, '');
   }
+  
+  // 2. 尝试找到 JSON 块（处理 "嘿呀！... ```json {...} ```" 这种情况）
+  const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    try {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        voiceText: parsed.voiceText || parsed.text || parsed.message || '',
+        text: parsed.text || '',
+        action: parsed.action || null,
+        actions: parsed.actions || null,
+        emotion: parsed.emotion || null,
+        expressions: parsed.expressions || null
+      };
+    } catch (e) {
+      // JSON 解析失败，继续尝试
+    }
+  }
+  
+  // 3. 直接解析（可能已经是纯 JSON）
   try {
     const parsed = JSON.parse(cleanText);
     return {
-      voiceText: parsed.voiceText || parsed.text || parsed.message || '',  // 语音说的
-      text: parsed.text || '',  // 详细文本展示
-      action: parsed.action || null,      // 单个动作（预设版本）
-      actions: parsed.actions || null,    // 动作数组（DiP版本）
+      voiceText: parsed.voiceText || parsed.text || parsed.message || '',
+      text: parsed.text || '',
+      action: parsed.action || null,
+      actions: parsed.actions || null,
       emotion: parsed.emotion || null,
       expressions: parsed.expressions || null
     };
