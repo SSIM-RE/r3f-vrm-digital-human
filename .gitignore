@@ -1,7 +1,5 @@
 # Dependencies
 node_modules/
-.pnp/
-.pnp.js
 
 # Build
 dist/
@@ -21,14 +19,11 @@ Thumbs.db
 # Logs
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log*
 
 # Environment
 .env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*.local
 
 # Test
 coverage/
@@ -36,33 +31,12 @@ coverage/
 # Misc
 *.log
 
-# Project specific - Large/Debug files
-*.json(不包含package.json)
-*.pyc
-__pycache__/
-.pytest_cache/
-node_modules/
+# Large/Debug files
 .minimax/
+__pycache__/
+*.pyc
 
-# Debug/Test scripts
-check_*.py
-compare*.py
-test_*.py
-show_npy.py
-convert_npy.py
-get_wave.py
-
-# API test data
-*_response.json
-dip_api_*.json
-dip_test_prompts.txt
-
-# Server temp files
-server/add_prefix_arg.py
-server/fix_parser.py
-server/test_args.py
-server/diP_prefix_modification.md
-
-# Archive (keep only essential)
-archive/
-docs/design/
+# VRM Models (optional - can be downloaded)
+public/models/*.vrm
+public/models/*.glb
+public/models/animations/*.fbx
