@@ -407,12 +407,44 @@ export const UI = () => {
   
   // 获取截止日期颜色（越近越红）
   const getDeadlineColor = (deadline) => {
-    if (!deadline) return 'text-white/50';
-    const today = new Date().toLocaleDateString('zh-CN');
-    if (deadline === '今天') return 'text-orange-400';
-    if (deadline === '明天') return 'text-yellow-400';
-    if (deadline < today) return 'text-red-400';
-    return 'text-white/50';
+    if (!deadline) return 'text-white/40';
+    
+    // 解析日期时间
+    const now = new Date();
+    let deadlineDate;
+    
+    if (deadline === '今天') {
+      deadlineDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59);
+    } else if (deadline === '明天') {
+      deadlineDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 23, 59);
+    } else if (deadline.includes('月')) {
+      // 格式: 3月28日 18:00
+      const match = deadline.match(/(\d+)月(\d+)日\s*(\d+)?:(\d+)?/);
+      if (match) {
+        const month = parseInt(match[1]);
+        const day = parseInt(match[2]);
+        const hour = match[3] ? parseInt(match[3]) : 23;
+        const minute = match[4] ? parseInt(match[4]) : 59;
+        deadlineDate = new Date(now.getFullYear(), month - 1, day, hour, minute);
+      }
+    } else {
+      deadlineDate = new Date(deadline);
+    }
+    
+    if (!deadlineDate || isNaN(deadlineDate)) return 'text-white/40';
+    
+    const diffHours = (deadlineDate - now) / (1000 * 60 * 60);
+    
+    if (diffHours < 0) return 'text-red-500'; // 已过期
+    if (diffHours < 24) return 'text-orange-400'; // 今天内
+    if (diffHours < 48) return 'text-yellow-400'; // 明天内
+    return 'text-white/50'; // 未来
+  };
+  
+  // 格式化截止日期显示
+  const formatDeadline = (deadline) => {
+    if (!deadline) return '+截止日期';
+    return deadline;
   };
   
   // 按紧急程度和截止日期排序
@@ -754,20 +786,20 @@ export const UI = () => {
                       onChange={(e) => setEditDeadline(e.target.value)}
                       onBlur={() => saveDeadline(todo.id)}
                       onKeyDown={(e) => e.key === 'Enter' && saveDeadline(todo.id)}
-                      placeholder="今天/明天/日期"
-                      className="w-20 px-2 py-0.5 bg-white/20 border border-pink-500 rounded text-xs text-white focus:outline-none"
+                      placeholder="今天/明天/3月28日 18:00"
+                      className="w-28 px-2 py-0.5 bg-white/20 border border-pink-500 rounded text-xs text-white focus:outline-none"
                       autoFocus
                     />
                   ) : (
                     <span 
                       onClick={() => startEditDeadline(todo)}
-                      className={`cursor-pointer px-2 py-0.5 text-xs rounded-full hover:bg-white/10 ${
+                      className={`cursor-pointer px-2 py-0.5 text-xs rounded-full hover:bg-white/10 whitespace-nowrap ${
                         todo.deadline === '今天' ? 'bg-orange-500/20' : 
                         todo.deadline === '明天' ? 'bg-yellow-500/20' :
                         'bg-white/10'
                       } ${getDeadlineColor(todo.deadline)}`}
                     >
-                      {todo.deadline || '+截止日期'}
+                      {formatDeadline(todo.deadline)}
                     </span>
                   )}
                   <button 
