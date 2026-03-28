@@ -757,22 +757,15 @@ export const UI = () => {
               sortedTodos.map(todo => (
                 <div 
                   key={todo.id} 
-                  className={`flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 group transition-all ${
-                    todo.urgent ? "bg-red-500/10 border-l-4 border-red-500" : 
-                    todo.done ? "bg-white/5" : "bg-white/5"
-                  }`}
+                  className={`flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 group transition-all min-w-0 ${todo.urgent ? "bg-red-500/10 border-l-4 border-red-500" : todo.done ? "bg-white/5" : "bg-white/5"}`}
                 >
                   <button 
                     onClick={() => toggleTodo(todo.id)}
-                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
-                      todo.done 
-                        ? "bg-gradient-to-r from-pink-400 to-purple-500 border-transparent" 
-                        : "border-white/30 hover:border-pink-400"
-                    }`}
+                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all flex-shrink-0 ${todo.done ? "bg-gradient-to-r from-pink-400 to-purple-500 border-transparent" : "border-white/30 hover:border-pink-400"}`}
                   >
                     {todo.done && <span className="text-white text-xs">✓</span>}
                   </button>
-                  <span className={`flex-1 text-sm transition-all whitespace-normal break-words ${todo.done ? "text-white/40 line-through" : "text-white/90"}`}>
+                  <span className={`text-sm transition-all whitespace-normal break-words min-w-0 ${todo.done ? "text-white/40 line-through" : "text-white/90"}`}>
                     {todo.text}
                   </span>
                   {todo.urgent && !todo.done && (
