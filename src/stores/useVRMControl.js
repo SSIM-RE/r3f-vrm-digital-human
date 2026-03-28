@@ -2,15 +2,55 @@ import { create } from 'zustand';
 
 // 动作持续时间配置（毫秒）
 const ACTION_DURATION = {
+  // 基础待机
+  idle: 0,           // 持续播放
+  sitting_idle: 0,
+  warrior_idle: 0,
+
+  // 互动手势
   wave: 4000,
+  pointing: 2000,
+  thumbs_up: 3000,
+  clap: 4000,
+  shrug: 3000,
+
+  // 头部动作
   nod: 4000,
-  shake: 4000,
   think: 4000,
-  point: 2000,
+  talking: 3000,
+
+  // 移动
+  walk: 3000,
+  running: 3000,
+  walk_turn: 2000,
+  jog_backwards: 3000,
+
+  // 舞蹈
   dance: 5000,
+  rumba: 5000,
+  swing: 5000,
+  bboy: 5000,
+  robot: 5000,
+  silly: 5000,
+  thriller: 8000,
+
+  // 运动/战斗
+  jump: 3000,
+  punch: 3000,
+  kick: 3000,
+  shoot: 3000,
+  zombie: 4000,
+
+  // 其他
+  entry: 3000,
+  typing: 4000,
+
+  // 兼容旧名称
+  shake: 3000,
+  point: 2000,
   greet: 2500,
-  idle: 0,  // 持续播放
-  default: 2000,
+
+  default: 3000,
 };
 
 // 恢复默认表情
@@ -77,15 +117,49 @@ export const useVRMControl = create((set, get) => ({
   
   // 动作到动画的映射（英文名称）
   actionAnimationMap: {
-    wave: 'Waving',
-    nod: 'Lengthy Head Nod',
-    shake: 'Shrugging',
-    think: 'Thinking',
-    point: 'Pointing',
-    clap: 'Clapping',
-    dance: 'Hip Hop Dancing',
-    none: null,
+    // 基础待机
     idle: 'Breathing Idle',
+    sitting_idle: 'Sitting Idle',
+    warrior_idle: 'Warrior Idle',
+
+    // 互动手势
+    wave: 'Waving',
+    pointing: 'Pointing',
+    thumbs_up: 'Standing Thumbs Up',
+    clap: 'Clapping',
+    shrug: 'Shrugging',
+
+    // 头部动作
+    nod: 'Lengthy Head Nod',
+    think: 'Thinking',
+    talking: 'Talking',
+
+    // 移动
+    walk: 'Walking',
+    running: 'Running',
+    walk_turn: 'Walking Turn 180',
+    jog_backwards: 'Slow Jog Backwards',
+
+    // 舞蹈
+    dance: 'Hip Hop Dancing',
+    rumba: 'Rumba Dancing',
+    swing: 'Swing Dancing',
+    bboy: 'Bboy Hip Hop Move',
+    robot: 'Robot Hip Hop Dance',
+    silly: 'Silly Dancing',
+    thriller: 'Thriller Part 2',
+
+    // 运动/战斗
+    jump: 'Jumping',
+    punch: 'Punching Bag',
+    kick: 'Hurricane Kick',
+    shoot: 'Shooting Arrow',
+    zombie: 'Zombie Stand Up',
+
+    // 其他
+    entry: 'Entry',
+    typing: 'Typing',
+    none: null,
   },
   
   // 设置单个表情
