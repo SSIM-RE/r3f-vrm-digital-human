@@ -2,7 +2,7 @@
 
 ## 项目介绍
 
-这是一个集成 OpenClaw Agent 的 VRM 虚拟形象设计雏形，展示如何将虚拟形象与 AI Agent 结合，实现自然的人机交互。
+这是一个集成 OpenClaw Agent 的 VRM 虚拟形象设计，展示如何将虚拟形象与 AI Agent 结合，实现自然的人机交互。
 
 ---
 
