@@ -47,7 +47,9 @@ const defaultTodos = [
   { id: 4, text: "健身 30 分钟", done: false, urgent: true },
 ];
 
-// 解析 Mico VRM 的回复（支持 JSON 或纯文本）
+// 解析 Mico VRM 的回复（支持两种动作格式）
+// 格式1: action (单个动作，中文) - 预设动画版本
+// 格式2: actions (动作数组，英文) - DiP 版本
 const parseMicoResponse = (responseText) => {
   let cleanText = responseText.trim();
   // 移除 ```json 或 ``` 包裹
@@ -65,14 +67,21 @@ const parseMicoResponse = (responseText) => {
     return {
       voiceText: parsed.voiceText || parsed.text || parsed.message || '',  // 语音说的
       text: parsed.text || '',  // 详细文本展示
-      actions: actions,  // 新版：动作数组
-      action: parsed.action || 'none',  // 旧版：单个动作（兼容）
+      action: parsed.action || null,      // 单个动作（预设版本）
+      actions: parsed.actions || null,    // 动作数组（DiP版本）
       emotion: parsed.emotion || null,
       expressions: parsed.expressions || null
     };
   } catch (e) {
     // 纯文本 fallback
-    return { voiceText: responseText, text: responseText, actions: [], action: 'none', emotion: null, expressions: null };
+    return { 
+      voiceText: responseText, 
+      text: responseText, 
+      action: null, 
+      actions: null, 
+      emotion: null, 
+      expressions: null 
+    };
   }
 };
 
@@ -333,24 +342,17 @@ export const UI = () => {
         }
         
         // 执行动作和表情的函数（延迟到音频播放时执行）
-        const executeOnPlay = async () => {
-          const actions = micoResponse.actions || [];
-          
-          // 设置表情
-          setTargetExpressions(expressions);
-          
-          // 如果有动作，执行动作
-          if (actions.length > 0) {
-            console.log('🎬 执行动作序列:', actions);
-            try {
-              await testDipSequence(actions);
-            } catch (err) {
-              console.error('❌ 动作执行失败:', err);
-            }
+        const executeOnPlay = () => {
+          // 优先使用 actions 数组（DiP 版本），其次使用 action（预设版本）
+          if (micoResponse.actions && micoResponse.actions.length > 0) {
+            // DiP 版本：调用连续动作生成
+            testDipSequence(micoResponse.actions);
           } else if (micoResponse.action && micoResponse.action !== 'none') {
-            // 兼容旧版：单个动作
-            console.log('🎬 执行单个动作:', micoResponse.action);
+            // 预设版本：执行单个动作
             executeAction(micoResponse.action, expressions);
+          } else {
+            // 没有动作时，只设置表情
+            setTargetExpressions(expressions);
           }
         };
         
@@ -362,7 +364,6 @@ export const UI = () => {
           // 没有语音，直接执行动作和表情
           executeOnPlay();
         }
-      }
     })
     .catch(err => {
       console.error('发送消息失败:', err);
@@ -433,8 +434,12 @@ export const UI = () => {
               setAiReplyDetail(detailText && detailText !== voiceText ? detailText : "");
             }
             
-            // 执行动作
-            if (micoResponse.action && micoResponse.action !== 'none') {
+            // 执行动作（支持两种格式）
+            if (micoResponse.actions && micoResponse.actions.length > 0) {
+              // DiP 版本
+              testDipSequence(micoResponse.actions);
+            } else if (micoResponse.action && micoResponse.action !== 'none') {
+              // 预设版本
               executeAction(micoResponse.action, micoResponse.expressions);
             } else if (micoResponse.expressions) {
               // 没有动作但有表情

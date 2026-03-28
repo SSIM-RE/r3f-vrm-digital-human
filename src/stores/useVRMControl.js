@@ -75,8 +75,18 @@ export const useVRMControl = create((set, get) => ({
   // 位置控制
   position: { x: 0, y: -1.25, z: 0 },
   
-  // 动作到动画的映射
+  // 动作到动画的映射（预设动作版本 - 中文名称）
   actionAnimationMap: {
+    挥手: 'Waving',
+    点头: 'Lengthy Head Nod',
+    摇头: 'Shrugging',
+    思考: 'Thinking',
+    指向: 'Pointing',
+    拍手: 'Clapping',
+    跳舞: 'Hip Hop Dancing',
+    站立: 'Breathing Idle',
+    无: null,
+    // 英文别名（兼容）
     wave: 'Waving',
     nod: 'Lengthy Head Nod',
     shake: 'Shrugging',
