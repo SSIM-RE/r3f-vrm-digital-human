@@ -358,6 +358,22 @@ export const UI = () => {
     setTodos(todos.map(t => t.id === id ? { ...t, done: !t.done } : t));
   };
 
+  // 编辑待办（设置截止日期）
+  const [editingId, setEditingId] = useState(null);
+  const [editDeadline, setEditDeadline] = useState('');
+
+  const startEditDeadline = (todo) => {
+    setEditingId(todo.id);
+    setEditDeadline(todo.deadline || '');
+  };
+
+  const saveDeadline = (id) => {
+    const newDeadline = editDeadline.trim() || null;
+    setTodos(todos.map(t => t.id === id ? { ...t, deadline: newDeadline } : t));
+    setEditingId(null);
+    setEditDeadline('');
+  };
+
   // 添加待办（支持紧急程度和截止日期）
   // 格式：文本 | 紧急 @日期 或 文本 @日期
   const addTodo = (input) => {
@@ -730,13 +746,28 @@ export const UI = () => {
                   {todo.urgent && !todo.done && (
                     <span className="px-2 py-0.5 bg-red-500/20 text-red-400 text-xs rounded-full">紧急</span>
                   )}
-                  {todo.deadline && !todo.done && (
-                    <span className={`px-2 py-0.5 text-xs rounded-full ${
-                      todo.deadline === '今天' ? 'bg-orange-500/20' : 
-                      todo.deadline === '明天' ? 'bg-yellow-500/20' :
-                      'bg-white/10'
-                    } ${getDeadlineColor(todo.deadline)}`}>
-                      {todo.deadline}
+                  {/* 点击截止日期进行编辑 */}
+                  {editingId === todo.id ? (
+                    <input
+                      type="text"
+                      value={editDeadline}
+                      onChange={(e) => setEditDeadline(e.target.value)}
+                      onBlur={() => saveDeadline(todo.id)}
+                      onKeyDown={(e) => e.key === 'Enter' && saveDeadline(todo.id)}
+                      placeholder="今天/明天/日期"
+                      className="w-20 px-2 py-0.5 bg-white/20 border border-pink-500 rounded text-xs text-white focus:outline-none"
+                      autoFocus
+                    />
+                  ) : (
+                    <span 
+                      onClick={() => startEditDeadline(todo)}
+                      className={`cursor-pointer px-2 py-0.5 text-xs rounded-full hover:bg-white/10 ${
+                        todo.deadline === '今天' ? 'bg-orange-500/20' : 
+                        todo.deadline === '明天' ? 'bg-yellow-500/20' :
+                        'bg-white/10'
+                      } ${getDeadlineColor(todo.deadline)}`}
+                    >
+                      {todo.deadline || '+截止日期'}
                     </span>
                   )}
                   <button 
