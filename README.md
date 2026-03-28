@@ -1,8 +1,6 @@
 # VRM Digital Human
 
-React + React Three Fiber + DiP 动作生成的 VRM 数字人系统
-
----
+基于 React Three Fiber 的 VRM 数字人系统，支持 TTS 语音合成和 AI 动作生成。
 
 ## 功能特性
 
@@ -12,8 +10,6 @@ React + React Three Fiber + DiP 动作生成的 VRM 数字人系统
 - 表情系统
 - 实时对话交互
 
----
-
 ## 技术栈
 
 - React 19.0.0
@@ -22,9 +18,7 @@ React + React Three Fiber + DiP 动作生成的 VRM 数字人系统
 - @pixiv/three-vrm 3.4.0
 - Zustand 5.0.11
 
----
-
-## 本地运行
+## 快速开始
 
 ```bash
 # 安装依赖
@@ -34,28 +28,29 @@ npm install
 npm run dev
 ```
 
----
-
 ## 服务依赖
 
-| 服务 | 端点 | 说明 |
-|------|------|------|
-| TTS | http://127.0.0.1:9880 | GPT-SoVITS |
-| DiP | http://localhost:5002 | WSL2 动作生成 |
+启动项目前需要运行以下服务：
 
----
+| 服务 | 端点 |
+|------|------|
+| TTS (GPT-SoVITS) | http://127.0.0.1:9880 |
+| DiP (动作生成) | http://localhost:5002 |
 
 ## 项目结构
 
 ```
-├── src/              # 前端源码
-├── server/           # 后端服务
-├── public/           # VRM 模型
-├── docs/             # 设计文档
+r3f-vrm-digital-human/
+├── src/                    # 前端源码
+│   ├── components/         # React 组件
+│   ├── hooks/             # 自定义 Hooks
+│   ├── stores/            # Zustand 状态管理
+│   └── utils/             # 工具函数
+├── server/                 # 后端服务
+├── public/                 # 静态资源 (VRM 模型)
+├── docs/                   # 设计文档
 └── package.json
 ```
-
----
 
 ## License
 
