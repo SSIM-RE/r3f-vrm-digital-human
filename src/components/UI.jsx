@@ -358,9 +358,67 @@ export const UI = () => {
     setTodos(todos.map(t => t.id === id ? { ...t, done: !t.done } : t));
   };
 
-  const addTodo = (text) => {
-    setTodos([...todos, { id: Date.now(), text, done: false, urgent: false }]);
+  // 添加待办（支持紧急程度和截止日期）
+  // 格式：文本 | 紧急 @日期 或 文本 @日期
+  const addTodo = (input) => {
+    if (!input.trim()) return;
+    
+    let text = input.trim();
+    let urgent = false;
+    let deadline = null;
+    
+    // 检查紧急标记
+    if (text.includes('!')) {
+      urgent = true;
+      text = text.replace('!', '').trim();
+    }
+    
+    // 检查截止日期 (格式: @今天, @明天, @2026-03-30)
+    if (text.includes('@')) {
+      const parts = text.split('@');
+      text = parts[0].trim();
+      deadline = parts[1].trim() || '今天';
+    }
+    
+    setTodos([...todos, { 
+      id: Date.now(), 
+      text, 
+      done: false, 
+      urgent, 
+      deadline 
+    }]);
   };
+  
+  // 获取截止日期颜色（越近越红）
+  const getDeadlineColor = (deadline) => {
+    if (!deadline) return 'text-white/50';
+    const today = new Date().toLocaleDateString('zh-CN');
+    if (deadline === '今天') return 'text-orange-400';
+    if (deadline === '明天') return 'text-yellow-400';
+    if (deadline < today) return 'text-red-400';
+    return 'text-white/50';
+  };
+  
+  // 按紧急程度和截止日期排序
+  const sortedTodos = [...todos].sort((a, b) => {
+    // 已完成放最后
+    if (a.done !== b.done) return a.done ? 1 : -1;
+    // 紧急的排前面
+    if (a.urgent !== b.urgent) return a.urgent ? -1 : 1;
+    // 按截止日期排序（越近越前）
+    if (a.deadline && b.deadline) {
+      const today = new Date().toLocaleDateString('zh-CN');
+      const aDays = a.deadline === '今天' ? 0 : a.deadline === '明天' ? 1 : 
+        a.deadline ? (new Date(a.deadline) - new Date(today)) / (1000*60*60*24) : 999;
+      const bDays = b.deadline === '今天' ? 0 : b.deadline === '明天' ? 1 : 
+        b.deadline ? (new Date(b.deadline) - new Date(today)) / (1000*60*60*24) : 999;
+      return aDays - bDays;
+    }
+    // 有截止日期的排前面
+    if (a.deadline && !b.deadline) return -1;
+    if (!a.deadline && b.deadline) return 1;
+    return 0;
+  });
 
   const deleteTodo = (id) => {
     setTodos(todos.filter(t => t.id !== id));
@@ -648,7 +706,7 @@ export const UI = () => {
                 <p className="text-white/40 text-sm mt-2">暂无待办事项</p>
               </div>
             ) : (
-              todos.map(todo => (
+              sortedTodos.map(todo => (
                 <div 
                   key={todo.id} 
                   className={`flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 group transition-all ${
@@ -674,9 +732,10 @@ export const UI = () => {
                   )}
                   {todo.deadline && !todo.done && (
                     <span className={`px-2 py-0.5 text-xs rounded-full ${
-                      todo.deadline === '今天' ? 'bg-orange-500/20 text-orange-400' : 
-                      'bg-white/10 text-white/50'
-                    }`}>
+                      todo.deadline === '今天' ? 'bg-orange-500/20' : 
+                      todo.deadline === '明天' ? 'bg-yellow-500/20' :
+                      'bg-white/10'
+                    } ${getDeadlineColor(todo.deadline)}`}>
                       {todo.deadline}
                     </span>
                   )}
