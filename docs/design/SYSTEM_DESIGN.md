@@ -1,153 +1,743 @@
-# VRM 数字人系统设计文档
+# VRM 数字人系统详细设计文档
 
-> 详细设计思路和技术实现说明
+> 本文档为详细设计说明，包含系统架构、模块设计、技术实现细节、数据格式等
 
 ---
 
 ## 一、系统概述
 
-### 1.1 目标
+### 1.1 设计目标
 
-构建一个集成 OpenClaw Agent 的 VRM 虚拟数字人，实现：
-- 语音/文本输入 → AI 对话理解
-- TTS 语音输出 + 口型同步
-- 动作生成 + 表情控制
+构建一个集成 OpenClaw Agent 的 VRM 虚拟数字人系统，实现：
 
-### 1.2 核心挑战
+| 功能 | 说明 |
+|------|------|
+| 智能对话 | 用户语音/文本输入 → OpenClaw Agent 理解意图 → 返回结构化指令 |
+| 语音输出 | TTS 语音合成 + 虚拟形象播放 |
+| 表情控制 | 根据 Agent 返回的情绪指令改变面部表情 |
+| 动作配合 | 根据 Agent 返回的动作指令播放动画 |
+| 口型同步 | 实时分析 TTS 音频，驱动虚拟形象嘴型 |
 
-| 挑战 | 描述 | 解决思路 |
+### 1.2 核心挑战与解决方案
+
+| 挑战 | 描述 | 解决方案 |
 |------|------|----------|
-| 多模态同步 | 语音、动作、表情需要协调 | 状态机管理，按时间顺序触发 |
-| 实时响应 | 用户输入后快速反馈 | 预设动画优先，AI 生成作为增强 |
-| 自然动作 | AI 动作要符合人类习惯 | DiP 动作生成 + 骨骼映射 |
-| VRM 兼容性 | 不同版本骨骼/表情不同 | 版本检测 + 条件分支 |
+| 多模态同步 | 语音、动作、表情需要协调触发 | 状态机管理，按时间顺序触发 |
+| 实时响应 | 用户输入后需快速反馈 | 预设动画优先，AI 生成作为增强 |
+| 自然动作 | AI 生成的动作要符合人类习惯 | DiP 动作生成 + 骨骼映射 |
+| VRM 兼容性 | VRM 0.x 和 1.0 骨骼/表情不同 | 版本检测 + 条件分支处理 |
 
 ---
 
 ## 二、整体架构
 
-### 数据流
+### 2.1 数据流
 
 ```
-用户输入 (语音/文本)
-       │
-       ▼
-┌─────────────────────────────┐
-│      OpenClaw Agent         │
-│   返回: {voiceText,        │
-│          emotion,          │
-│          actions,          │
-│          expressions}      │
-└──────────────┬──────────────┘
-               │
-               ▼
-┌─────────────────────────────────────────┐
-│              前端处理                   │
-│  ┌──────────┐ ┌──────────┐ ┌────────┐ │
-│  │ TTS      │ │ 表情控制 │ │ 动作   │ │
-│  │ 语音+口型│ │ setValue │ │ 播放   │ │
-│  └──────────┘ └──────────┘ └────────┘ │
-└──────────────┬──────────────┘
-               │
-               ▼
-┌─────────────────────────────┐
-│         VRMAvatar          │
-│    (虚拟形象渲染呈现)       │
-└─────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                              用户输入                                    │
+│                    ┌─────────────────┐    ┌─────────────────┐            │
+│                    │   语音输入      │    │   文本输入      │            │
+│                    │  (麦克风录音)   │    │   (直接输入)    │            │
+│                    └────────┬────────┘    └────────┬────────┘            │
+└───────────────────────────┼─────────────────────┼──────────────────────┘
+                            │                     │
+                            ▼                     ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        useAudioRecorder                                 │
+│  • MediaRecorder 录音                                                   │
+│  • VAD 检测静音 > 800ms 自动停止                                         │
+│  • 输出 Audio Blob                                                      │
+└────────────────────────────────┬────────────────────────────────────────┘
+                                 │
+                                 ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      OpenClaw Agent                                     │
+│  输入: 用户意图                                                          │
+│  输出: {                                                               │
+│    "voiceText": "你好，很高兴见到你！",  // 用于 TTS 播报的文本          │
+│    "text": "...",                              // 用于界面展示的详细文本  │
+│    "emotion": "happy",                        // 情绪指令                 │
+│    "actions": ["wave", "nod"],                // 动作指令列表            │
+│    "expressions": {"happy": 1}                // 表情指令                 │
+│  }                                                                     │
+└────────────────────────────────┬────────────────────────────────────────┘
+                                 │
+                                 ▼
+              ┌───────────────────────────────────────────────────────────┐
+              │             前端解析处理                                   │
+              │   解析 Agent 返回的结构化数据                              │
+              │   ┌────────────┐  ┌────────────┐  ┌──────────────────┐  │
+              │   │    TTS     │  │   表情     │  │      动作        │  │
+              │   │ 语音+口型   │  │  setValue  │  │ 预设动画 / DiP   │  │
+              │   └────────────┘  └────────────┘  └──────────────────┘  │
+              └────────────────────────┬────────────────────────────────┘
+                                       │
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           VRMAvatar                                     │
+│              (模型加载 + 动画播放 + 表情控制 + 渲染)                    │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### 2.2 详细流程说明
+
+```
+Step 1: 用户输入
+  │
+  ├─ 语音输入
+  │   └─> 点击录音按钮 → useAudioRecorder 开始录音
+  │       → VAD 检测音量，持续静音 > 800ms 自动停止
+  │       → 生成 Audio Blob → 发送到后端转写 (可选)
+  │
+  └─ 文本输入
+      └─> 直接在输入框输入文本
+
+Step 2: Agent 处理
+  │
+  └─> 发送输入到 OpenClaw Agent
+      → Agent 理解用户意图
+      → 返回结构化数据 {voiceText, emotion, actions, expressions}
+
+Step 3: 前端响应
+  │
+  ├─ 发起 TTS 请求
+  │   └─> 收到音频后播放，同时启动音频分析
+  │       → 频谱分析提取口型数据 → 实时驱动 VRM 嘴型
+  │
+  ├─ 设置表情
+  │   └─> useVRMControl.setTargetExpressions({emotion: 1})
+  │       → updateExpressions() 每帧执行渐变
+  │
+  └─ 执行动作
+      └─> useVRMControl.executeAction(actionName)
+          → 从动作映射表选择对应动画
+          → 或调用 useDipMotion 生成 AI 动作
+          → 设置定时器，动画结束后自动切换回 Idle
 ```
 
 ---
 
-## 三、模块设计
+## 三、模块详细设计
 
 ### 3.1 VRMAvatar
 
-**职责**：虚拟形象渲染和控制
+**职责**：虚拟形象的渲染和控制，是整个系统的核心组件。
 
-**核心功能**：
-- VRM 模型加载（支持 VRM 1.0 和 0.x）
-- 骨骼动画播放（Mixamo FBX 动画）
-- 表情控制（setValue 设置 morphTargetInfluences）
-- 眨眼逻辑（随机间隔）
-- 注视功能（头部跟随）
+#### 3.1.1 核心功能
 
-**关键设计**：
-- 预设动画 + AI 动画的优先级管理
-- 动画 fadeIn/fadeOut 平滑过渡
-- 播放 DiP 动作时暂停内置动画系统
+| 功能 | 说明 |
+|------|------|
+| VRM 模型加载 | 使用 @pixiv/three-vrm 加载，支持 VRM 1.0 和 0.x 版本 |
+| 骨骼动画播放 | 播放 Mixamo 预制的 FBX 动画，使用 crossfade 平滑过渡 |
+| 表情控制 | 通过 expressionManager.setValue() 设置 morphTargetInfluences |
+| 随机眨眼 | 随机间隔 3-6 秒的眨眼动画 |
+| 头部注视 | 头部跟随鼠标或指定目标点 |
+
+#### 3.1.2 VRM 版本检测
+
+```javascript
+// 检测 VRM 版本
+const isVRM1 = userData.vrm.meta?.metaVersion === "1";
+
+// 根据版本选择骨骼名称
+const spineBone = isVRM1 ? 'spine' : 'Spine';
+```
+
+#### 3.1.3 骨骼获取
+
+```javascript
+// 获取 VRM 骨骼节点
+const bone = vrm.humanoid.getNormalizedBoneNode(boneName);
+
+// 设置骨骼旋转
+bone.quaternion.slerp(targetQuaternion, slerpFactor);
+```
+
+#### 3.1.4 表情控制机制
+
+VRM 的表情系统是**自动累加**的：
+- 每帧开始时，VRM 自动清零所有 morphTargetInfluences
+- 然后依次累加每个表情的权重
+- 因此直接 setValue 即可，不需要手动计算混合
+
+```javascript
+// VRM 每帧自动执行：
+// 1. 清零 morphTargetInfluences
+expression.clearAppliedWeight();
+
+// 2. 计算每个表情的 multiplier
+const multiplier = 1 - sum(expression.overrideMouthAmount);
+
+// 3. 依次累加每个表情
+expression.applyWeight({ multiplier });
+// → mesh.morphTargetInfluences += weight × multiplier
+
+// 所以直接 setValue 即可
+vrm.expressionManager.setValue('happy', 0.8);
+vrm.expressionManager.setValue('aa', 0.5); // 自动与 happy 叠加
+```
+
+#### 3.1.5 动画播放逻辑
+
+```javascript
+// 动画状态管理
+const animationStateRef = useRef({
+  currentAction: null,  // 当前正在播放的动作
+  lastAnimation: null   // 上一次设置的动画
+});
+
+// 动画切换逻辑
+useEffect(() => {
+  // 1. Idle 动画始终在后台运行
+  idleAction.reset().play();
+  idleAction.fadeIn(animationFadeTime);
+
+  // 2. 如果有新动作，执行 crossfade
+  if (targetAnimation && targetAnimation !== 'None') {
+    const action = actions[targetAnimation];
+    if (action) {
+      // 淡出当前动作
+      if (currentAction) {
+        currentAction.fadeOut(animationFadeTime).play();
+      }
+      // 淡入新动作
+      action.reset().fadeIn(animationFadeTime).play();
+      currentAction = action;
+    }
+  }
+}, [targetAnimation]);
+```
+
+#### 3.1.6 DiP 动作播放
+
+当播放 DiP 生成的动作时，需要暂停内置动画系统：
+
+```javascript
+useFrame(() => {
+  // 如果正在播放 DiP 动作，跳过 VRM 内置动画更新
+  if (window.vrmForDipPlaying) {
+    return;
+  }
+  // 否则正常更新动画
+  // ...
+});
+```
 
 ---
 
-### 3.2 useVRMControl (Store)
+### 3.2 useVRMControl (Zustand Store)
 
-**职责**：状态管理
+**职责**：虚拟形象的状态管理，充当整个系统的大脑。
 
-**状态结构**：
+#### 3.2.1 状态结构
+
 ```javascript
 {
-  expressions: { happy: 0, sad: 0, ... },     // 当前值
-  targetExpressions: { happy: 1, ... },       // 目标值（渐变用）
-  animation: "Waving",                        // 当前动画
-  isSpeaking: false,                          // TTS 播放状态
-  lipSyncExpressions: { aa: 0, ih: 0, ... }, // 口型数据
-  lipSyncScale: 0.5,                          // 口型幅度
-  transitionSpeed: 3,                         // 表情渐变速度
-  animationFadeTime: 1.5                       // 动画过渡时间
+  // 表情状态
+  expressions: {
+    happy: 0, sad: 0, angry: 0, surprised: 0, neutral: 1, relaxed: 0,
+    aa: 0, ih: 0, ee: 0, oh: 0, ou: 0,  // 口型
+    blinkLeft: 0, blinkRight: 0           // 眨眼
+  },
+
+  // 目标表情（用于渐变过渡）
+  targetExpressions: { ... },
+
+  // 动作状态
+  currentAction: null,         // 当前动作名称
+  actionTimer: null,          // 动作定时器（自动切回 Idle）
+  animation: null,            // 当前播放的动画名
+
+  // TTS 状态
+  isSpeaking: false,           // TTS 播放状态（重要：用这个判断，不是口型值）
+  lipSyncExpressions: { aa: 0, ih: 0, ee: 0, oh: 0, ou: 0 },  // TTS 口型数据
+
+  // 控制参数
+  lipSyncScale: 0.5,           // TTS 口型幅度
+  aiMouthWeight: 0.3,         // AI 表情口型权重
+  maxEmotionScale: 1.0,       // 表情幅度上限
+  transitionSpeed: 3,         // 表情渐变速度
+  animationFadeTime: 1.5      // 动画过渡时间
 }
 ```
 
-**核心方法**：
-- `setTargetExpressions()` - 设置目标表情
-- `updateExpressions()` - 每帧渐变
-- `executeAction()` - 执行动作（带定时自动恢复）
-- `setLipSyncExpressions()` - 设置口型数据
+#### 3.2.2 核心方法
+
+**表情渐变 (updateExpressions)**
+
+```javascript
+updateExpressions: (deltaTime) => {
+  const speed = transitionSpeed * deltaTime;
+  const newExpressions = { ...expressions };
+
+  // 嘴巴和眼睛不渐变，由其他模块直接控制
+  const mouthKeys = ['aa', 'ih', 'ee', 'oh', 'ou'];
+  const eyeKeys = ['blinkLeft', 'blinkRight'];
+
+  for (const key in newExpressions) {
+    if (mouthKeys.includes(key) || eyeKeys.includes(key)) continue;
+
+    // 表情渐变：current += (target - current) × speed
+    if (key in targetExpressions) {
+      const current = newExpressions[key];
+      const target = targetExpressions[key];
+      const diff = target - current;
+
+      if (Math.abs(diff) > 0.01) {
+        newExpressions[key] = current + diff * speed;
+      } else {
+        newExpressions[key] = target;
+      }
+    }
+  }
+
+  set({ expressions: newExpressions });
+}
+```
+
+**动作执行 (executeAction)**
+
+```javascript
+executeAction: (actionName, expressions = null, customDuration = null) => {
+  // 1. 清除之前的定时器
+  if (actionTimer) clearTimeout(actionTimer);
+
+  // 2. 获取动作持续时间
+  const duration = customDuration || ACTION_DURATION[actionName] || 2000;
+
+  // 3. 获取动画名称映射
+  const animName = actionAnimationMap[actionName] || actionName;
+
+  // 4. 设置动画
+  set({
+    animation: actionName === 'none' ? null : animName,
+    currentAction: actionName
+  });
+
+  // 5. 设置目标表情
+  if (expressions) {
+    set({ targetExpressions: { ...DEFAULT_EXPRESSIONS, ...expressions } });
+  }
+
+  // 6. 设置定时器，动画结束后切换回 Idle
+  const timer = setTimeout(() => {
+    set({
+      animation: "Breathing Idle",
+      currentAction: null
+    });
+  }, duration);
+
+  set({ actionTimer: timer });
+  return true;
+}
+```
+
+#### 3.2.3 动作持续时间配置
+
+```javascript
+const ACTION_DURATION = {
+  wave: 4000,      // 挥手 4 秒
+  nod: 4000,      // 点头 4 秒
+  shake: 4000,    // 摇头 4 秒
+  think: 4000,    // 思考 4 秒
+  point: 2000,    // 指人 2 秒
+  dance: 5000,    // 跳舞 5 秒
+  greet: 2500,    // 打招呼 2.5 秒
+  idle: 0,        // 持续播放
+  default: 2000   // 默认 2 秒
+};
+```
+
+#### 3.2.4 动作到动画映射
+
+```javascript
+const actionAnimationMap = {
+  wave: 'Waving',
+  nod: 'Lengthy Head Nod',
+  shake: 'Shrugging',
+  think: 'Thinking',
+  point: 'Pointing',
+  dance: 'Hip Hop Dancing',
+  greet: 'Waving',
+  idle: 'Breathing Idle'
+};
+```
 
 ---
 
 ### 3.3 useTTS
 
-**职责**：语音合成和口型同步
+**职责**：语音合成和口型同步，是实现虚拟形象"说话"功能的核心模块。
 
-**核心功能**：
-- 调用 TTS 服务生成语音
-- 音频分析（Web Audio API + AnalyserNode）
-- 频谱分析提取口型数据
+#### 3.3.1 核心功能
 
-**频谱映射**：
-- 低频 (0-1300Hz) → aa (啊)
-- 中频 (1300-4300Hz) → ih, ee
-- 高频 (4300+) → oh, ou
+| 功能 | 说明 |
+|------|------|
+| TTS 请求 | 调用 GPT-SoVITS 服务生成语音 |
+| 音频播放 | 使用 HTML5 Audio 播放生成的语音 |
+| 音频分析 | 使用 Web Audio API 分析频谱 |
+| 口型同步 | 提取口型数据并同步到 VRM |
 
-**关键设计**：用 `isSpeaking` 判断状态，不是口型值
+#### 3.3.2 TTS 请求流程
+
+```javascript
+const speak = async (text, onPlay) => {
+  // 1. 清理之前的播放
+  if (audioRef.current) audioRef.current.pause();
+  if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+
+  // 2. 调用 TTS API
+  const params = new URLSearchParams({
+    text: cleanText,
+    text_lang: 'zh',
+    ref_audio_path: REF_AUDIO,
+    prompt_text: '...',
+    prompt_lang: 'zh',
+    speed_factor: 1.0
+  });
+
+  const response = await fetch(`/tts?${params}`);
+  const audioBlob = await response.blob();
+  const audioUrl = URL.createObjectURL(audioBlob);
+
+  // 3. 创建 Audio 并播放
+  audioRef.current = new Audio(audioUrl);
+
+  // 4. 播放时启动音频分析
+  audioRef.current.onplay = () => {
+    // 启动频谱分析循环
+    animationFrameRef.current = requestAnimationFrame(analyzeAudio);
+    if (onPlay) onPlay();  // 触发回调（执行动作/表情）
+  };
+
+  // 5. 播放结束时清理
+  audioRef.current.onended = () => {
+    setIsSpeaking(false);
+    URL.revokeObjectURL(audioUrl);
+    window.dispatchEvent(new CustomEvent('ttsEnded'));
+  };
+
+  await audioRef.current.play();
+};
+```
+
+#### 3.3.3 音频分析（频谱分析）
+
+```javascript
+const analyzeAudio = () => {
+  if (!analyserRef.current || !lipSyncCallbackRef.current) return;
+
+  // 1. 获取频域数据
+  const bufferLength = analyserRef.current.frequencyBinCount;
+  const dataArray = new Uint8Array(bufferLength);
+  analyserRef.current.getByteFrequencyData(dataArray);
+
+  // 2. 获取时域数据（计算音量）
+  const timeDataArray = new Uint8Array(bufferLength);
+  analyserRef.current.getByteTimeDomainData(timeDataArray);
+
+  // 3. 计算 RMS 音量
+  let sum = 0;
+  for (let i = 0; i < bufferLength; i++) {
+    const v = (timeDataArray[i] - 128) / 128;
+    sum += v * v;
+  }
+  const volume = Math.sqrt(sum / bufferLength);
+
+  // 4. 最小音量阈值（避免静音时误触发）
+  if (volume < 0.01) {
+    animationFrameRef.current = requestAnimationFrame(analyzeAudio);
+    return;
+  }
+
+  // 5. 频段划分 (fftSize=1024, 44100Hz 采样)
+  // 每个 bin = 44100/1024 ≈ 43 Hz
+  const lowEnd = Math.floor(bufferLength * 0.15);   // 0-1300Hz
+  const midEnd = Math.floor(bufferLength * 0.5);    // 1300-4300Hz
+
+  // 6. 计算各频段能量
+  let lowSum = 0, midSum = 0, highSum = 0;
+  for (let i = 0; i < lowEnd; i++) lowSum += dataArray[i];
+  for (let i = lowEnd; i < midEnd; i++) midSum += dataArray[i];
+  for (let i = midEnd; i < bufferLength; i++) highSum += dataArray[i];
+
+  const lowAvg = lowSum / lowEnd / 255;
+  const midAvg = midSum / (midEnd - lowEnd) / 255;
+  const highAvg = highSum / (bufferLength - midEnd) / 255;
+
+  // 7. 归一化音量
+  const normalizedVolume = Math.min(1, volume * 3);
+
+  // 8. 简化版口型映射（用音量驱动 aa）
+  const lipSyncScale = useVRMControl.getState().lipSyncScale || 0.5;
+  const aa = normalizedVolume > 0.05
+    ? Math.min(1, normalizedVolume * lipSyncScale * 2)
+    : 0;
+
+  // 9. 发送口型数据
+  lipSyncCallbackRef.current({ aa, ih: 0, ee: 0, oh: 0, ou: 0 });
+
+  // 10. 继续分析下一帧
+  if (audioRef.current && !audioRef.current.paused) {
+    animationFrameRef.current = requestAnimationFrame(analyzeAudio);
+  }
+};
+```
+
+#### 3.3.4 关键设计：用 isSpeaking 判断状态
+
+```javascript
+// 错误做法：用口型值判断 TTS 状态
+// 原因：TTS 播放中可能有静音段，口型值会低于阈值
+if (lipSyncExpressions.aa > 0) {
+  // TTS 播放中
+} else {
+  // TTS 停止  ← 错误！静音不等于停止
+}
+
+// 正确做法：用 isSpeaking 判断
+if (isSpeaking) {
+  // TTS 播放中：AI 表情 + TTS 口型叠加
+} else {
+  // TTS 停止：切换到 neutral
+  setTargetExpressions({ neutral: 1 });
+}
+```
+
+#### 3.3.5 TTS 结束时的处理
+
+```javascript
+// VRMAvatar.jsx 中的处理
+useFrame(() => {
+  if (isSpeaking) {
+    // TTS 播放中：应用 TTS 口型
+    mouthShapes.forEach(item => {
+      lerpExpression(item.name, item.source, delta * 30);
+    });
+  } else {
+    // TTS 停止：切换到 neutral（使用 setTargetExpressions 触发渐变）
+    setTargetExpressions({ neutral: 1 });
+  }
+});
+```
 
 ---
 
 ### 3.4 useDipMotion
 
-**职责**：AI 动作生成（可选功能）
+**职责**：AI 动作生成，使用 DiP (Diffusion Planner) 模型根据文本描述生成动作。
 
-**什么是 DiP**：Diffusion Planner，动作生成模型，根据文本描述生成动作。
+#### 3.4.1 什么是 DiP
 
-**骨骼映射**：
-- HumanML3D 22 关节 → VRM 骨骼
-- 翻转 Z 轴坐标
-- 手掌骨骼设为单位四元数
-- 跳过前 40 帧（不稳定）
+DiP (Diffusion Planner) 是一个基于 diffusion 模型的 AI 动作生成技术：
+
+- **输入**：动作描述文本（如 "wave hand"、"dance"、"walking"）
+- **输出**：动作序列数据，格式为 (帧数, 22 关节, 3 坐标) 的位置数据
+
+#### 3.4.2 核心功能
+
+| 功能 | 说明 |
+|------|------|
+| DiP 服务调用 | 发送动作提示词到 DiP 服务 |
+| 骨骼映射 | 将 HML 骨骼数据映射到 VRM 骨骼 |
+| 帧应用 | 逐帧将动作数据应用到 VRM |
+
+#### 3.4.3 DiP API 调用
+
+```javascript
+const generateMotion = async (prompt) => {
+  const response = await fetch(DIP_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt })
+  });
+
+  const data = await response.json();
+
+  // 返回格式：
+  // {
+  //   motion: [[x,y,z], ...],  // [frames][joints][3]
+  //   joints: 22,
+  //   frames: 200,
+  //   fps: 20,
+  //   hml_names: [...]
+  // }
+
+  return {
+    motion: data.motion,
+    joints: data.joints,
+    frames: data.frames,
+    fps: data.fps
+  };
+};
+```
+
+#### 3.4.4 骨骼映射 (HML → VRM)
+
+HumanML3D 的 22 关节顺序：
+
+```
+0: Hips,           1: RightUpperLeg,  2: RightLowerLeg,  3: RightFoot,
+4: LeftUpperLeg,   5: LeftLowerLeg,   6: LeftFoot,
+7: Spine,          8: Chest,          9: Neck,            10: Head,
+11: RightUpperArm, 12: RightLowerArm,  13: RightHand,
+14: LeftUpperArm,  15: LeftLowerArm,   16: LeftHand,
+17: LeftEye,      18: RightEye,       19: Jaw,            20: LeftToes, 21: RightToes
+```
+
+VRM 骨骼名称：
+
+```javascript
+const HML_TO_VRM = [
+  'hips', 'rightUpperLeg', 'rightLowerLeg', 'rightFoot',
+  'leftUpperLeg', 'leftLowerLeg', 'leftFoot',
+  'spine', 'chest', 'neck', 'head',
+  'rightUpperArm', 'rightLowerArm', 'rightHand',
+  'leftUpperArm', 'leftLowerArm', 'leftHand'
+];
+```
+
+#### 3.4.5 骨骼转换关键点
+
+```javascript
+// 1. 坐标系翻转（根据实际测试调整）
+const flipAxis = (joint) => {
+  const [x, y, z] = joint;
+  return [x, y, -z];  // 翻转 Z 轴
+};
+
+// 2. 手掌处理（设为单位四元数，由前臂决定方向）
+const handQuaternion = new Quaternion(0, 0, 0, 1);
+
+// 3. 跳过前 40 帧（DiP 生成的动作前几帧不稳定）
+const startFrame = 40;
+
+// 4. 位置转旋转（简化版：使用相邻关节方向）
+const calculateRotation = (currentPos, nextPos) => {
+  const direction = new Vector3().subVectors(nextPos, currentPos).normalize();
+  const up = new Vector3(0, 1, 0);
+  return new Quaternion().setFromUnitVectors(up, direction);
+};
+```
+
+#### 3.4.6 动作播放
+
+```javascript
+// 在 UI.jsx 中使用 useEffect + setInterval 播放
+useEffect(() => {
+  if (dipPlaying && motionData && window.vrmInstance) {
+    window.vrmForDipPlaying = true;  // 暂停 VRM 内置动画
+
+    intervalRef.current = setInterval(() => {
+      const frame = frameRef.current;
+
+      // 应用当前帧到 VRM
+      applyDipFrame(motionData[frame], window.vrmInstance);
+
+      frameRef.current++;
+
+      // 播放完成
+      if (frameRef.current >= totalFrames) {
+        window.vrmForDipPlaying = false;
+        setDipPlaying(false);
+        clearInterval(intervalRef.current);
+      }
+    }, 50);  // 20fps
+  }
+}, [dipPlaying]);
+```
+
+#### 3.4.7 两种动作实现方式的选择
+
+| 方式 | 优点 | 缺点 | 适用场景 |
+|------|------|------|----------|
+| **预设动画** | 响应快、稳定 | 动作有限 | 常用动作（挥手、点头等） |
+| **DiP 生成** | 自然、灵活 | 需要 GPU | 特殊动作、更多变化 |
 
 ---
 
 ### 3.5 useAudioRecorder
 
-**职责**：用户语音录制
+**职责**：用户语音录制，带 VAD (Voice Activity Detection) 自动截断。
 
-**核心功能**：
-- 麦克风录音（MediaRecorder）
-- VAD 检测，自动截断静音
+#### 3.5.1 核心功能
 
-**参数**：
-- 音量阈值: 15
-- 检测间隔: 50ms
-- 静音阈值: 800ms
+| 功能 | 说明 |
+|------|------|
+| 麦克风录音 | 使用 MediaRecorder API 录音 |
+| VAD 检测 | 实时分析音量，检测静音 |
+| 自动截断 | 静音超过阈值自动停止录音 |
+| Blob 输出 | 输出 Audio Blob 供后端处理 |
+
+#### 3.5.2 录音流程
+
+```javascript
+const startRecording = async () => {
+  // 1. 请求麦克风权限
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+  // 2. 创建 MediaRecorder
+  const mediaRecorder = new MediaRecorder(stream, {
+    mimeType: 'audio/webm;codecs=opus'
+  });
+
+  // 3. 收集音频数据
+  mediaRecorder.ondataavailable = (event) => {
+    if (event.data.size > 0) {
+      chunksRef.current.push(event.data);
+    }
+  };
+
+  // 4. 录音结束时处理
+  mediaRecorder.onstop = () => {
+    // 生成 Audio Blob
+    const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+    setAudioBlob(blob);
+    setIsRecording(false);
+  };
+
+  // 5. VAD 检测
+  const audioContext = new AudioContext();
+  const analyser = audioContext.createAnalyser();
+  analyser.fftSize = 256;
+  const source = audioContext.createMediaStreamSource(stream);
+  source.connect(analyser);
+
+  // 6. VAD 循环
+  vadTimerRef.current = setInterval(() => {
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(dataArray);
+    const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+
+    if (average > VAD_THRESHOLD) {
+      // 有声音，重置计时器
+      silenceTimeRef.current = 0;
+    } else {
+      // 静音，累计时间
+      silenceTimeRef.current += VAD_INTERVAL;
+
+      // 超过阈值，自动停止
+      if (silenceTimeRef.current >= SILENCE_THRESHOLD) {
+        mediaRecorder.stop();
+        clearInterval(vadTimerRef.current);
+      }
+    }
+  }, VAD_INTERVAL);
+
+  // 7. 开始录音
+  mediaRecorder.start(100);
+  setIsRecording(true);
+};
+```
+
+#### 3.5.3 VAD 参数
+
+| 参数 | 值 | 说明 |
+|------|------|------|
+| VAD_THRESHOLD | 15 | 音量阈值，低于此值视为静音 |
+| VAD_INTERVAL | 50 | 检测间隔 (ms) |
+| SILENCE_THRESHOLD | 800 | 静音阈值 (ms)，超过自动停止 |
 
 ---
 
@@ -155,46 +745,74 @@
 
 ### 4.1 TTS 配置 (GPT-SoVITS)
 
-**端点**: `/tts` (端口 9880)
+#### 服务信息
 
-**请求参数**：
-| 参数 | 说明 |
+| 项目 | 值 |
 |------|------|
-| text | 要合成的文本 |
-| text_lang | 文本语言 (zh/en/ja...) |
-| ref_audio_path | 参考音频路径 |
-| prompt_text | 参考音频文本 |
-| speed_factor | 语速，默认 1.0 |
+| 端点 | `/tts` |
+| 端口 | 9880 |
+| 启动命令 | `python api_v2.py -a 127.0.0.1 -p 9880` |
+
+#### 请求参数
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| text | string | ✅ | 要合成的文本 |
+| text_lang | string | ✅ | 文本语言 (zh/en/ja/ko/yue) |
+| ref_audio_path | string | ✅ | 参考音频路径 |
+| prompt_text | string | ✅ | 参考音频对应的文本 |
+| prompt_lang | string | ✅ | 参考音频语言 |
+| speed_factor | float | ❌ | 语速，默认 1.0 |
+
+#### 请求示例
+
+```javascript
+const params = new URLSearchParams({
+  text: "你好呀，主人！",
+  text_lang: "zh",
+  ref_audio_path: "D:\\AI\\OpenClaw\\GPT-SoVITS-v2pro-20250604\\ref_audio\\koli_ref.wav",
+  prompt_text: "玩得太开心忘忘在脑后了",
+  prompt_lang: "zh",
+  speed_factor: 1.0
+});
+
+const response = await fetch(`/tts?${params}`);
+const audioBlob = await response.blob();
+```
 
 ### 4.2 Vite 代理配置
 
 ```javascript
+// vite.config.js
 server: {
   proxy: {
-    '/tts': 'http://127.0.0.1:9880',
-    '/api': 'http://localhost:5002',
-    '/v1': 'http://localhost:18789'
+    '/tts': {
+      target: 'http://127.0.0.1:9880',
+      changeOrigin: true
+    },
+    '/api': {
+      target: 'http://localhost:5002',
+      changeOrigin: true
+    },
+    '/v1': {
+      target: 'http://localhost:18789',
+      changeOrigin: true
+    },
+    '/set_gpt_weights': {
+      target: 'http://127.0.0.1:9880',
+      changeOrigin: true
+    }
   }
 }
 ```
 
-### 4.3 VRM 表情控制
+### 4.3 DiP 服务配置
 
-```javascript
-// VRM 每帧自动清零 + 累加
-// 直接 setValue 即可
-vrm.expressionManager.setValue('happy', 0.8);
-```
-
-### 4.4 动作执行流程
-
-```
-1. executeAction("wave")
-2. 设置 animation: "Waving"
-3. 启动定时器（默认 4000ms）
-4. 动画播放
-5. 定时器触发 → 切换回 Idle
-```
+| 项目 | 值 |
+|------|------|
+| 端点 | `/api/generate` |
+| 端口 | 5002 (WSL2) |
+| 启动命令 | `conda activate mdm && python dip/server.py` |
 
 ---
 
@@ -204,52 +822,84 @@ vrm.expressionManager.setValue('happy', 0.8);
 
 ```
 C:\Users\Miss\.openclaw\workspace-mico-vrm\
-├── SOUL.md              # Agent 人设
+├── SOUL.md              # Agent 人设配置
 ├── USER.md              # 用户信息
 ├── auth-profiles.json   # 认证配置
 └── models.json          # 模型配置
 ```
 
-### 5.2 Agent 返回格式
+### 5.2 SOUL.md 配置示例
+
+```markdown
+# Mico VRM - 虚拟形象 Agent
+
+## 身份
+- 名字: Mico (米可)
+- 角色: VRM 虚拟形象 AI 助理
+
+## 回复格式
+必须返回 JSON 格式：
+{
+  "voiceText": "你的回复（用于 TTS）",
+  "emotion": "happy|sad|angry|surprised|relaxed|neutral",
+  "actions": ["动作1", "动作2"],
+  "expressions": {"happy": 0-1, "sad": 0-1}
+}
+```
+
+### 5.3 Agent 返回格式
 
 ```json
 {
   "voiceText": "你好，很高兴见到你！",
   "emotion": "happy",
-  "actions": ["wave"],
-  "expressions": {"happy": 1}
+  "actions": ["wave", "nod"],
+  "expressions": {
+    "happy": 1
+  }
 }
 ```
 
-### 5.3 前端调用
+### 5.4 前端调用方式
 
 ```javascript
+const requestBody = {
+  model: "openclaw:mico-vrm",  // 注意：必须加 "openclaw:" 前缀
+  input: "你好",
+  user: sessionKey  // 保持会话上下文
+};
+
 fetch('/v1/responses', {
   method: 'POST',
-  body: JSON.stringify({
-    model: "openclaw:mico-vrm",
-    input: "你好",
-    user: "session-001"
-  })
-})
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer <token>'
+  },
+  body: JSON.stringify(requestBody)
+});
 ```
 
 ---
 
-## 六、动作实现方式
+## 六、相关技术
 
-| 方式 | 说明 | 适用场景 |
-|------|------|----------|
-| **预设动画** | Mixamo 预制 FBX 动画 | 常用动作（挥手、点头等） |
-| **DiP 生成** | AI 根据文本生成动作 | 特殊动作、自然效果 |
+### 6.1 VRM
 
----
+VRM 是虚拟形象专用的 3D 模型格式：
+- **官网**: https://vrm-c.github.io/
+- **特点**: 自带骨骼、表情、形态目标数据，标准化格式
 
-## 七、相关技术
+### 6.2 TTS (GPT-SoVITS)
 
-- **VRM**: 虚拟形象 3D 模型格式 - https://vrm-c.github.io/
-- **TTS**: GPT-SoVITS - https://github.com/RVC-Boss/GPT-SoVITS
-- **DiP**: 动作生成模型 - https://github.com/MotionDiffusionModel/MotionDiffusionModel
+Text-to-Speech，语音合成技术：
+- **项目**: https://github.com/RVC-Boss/GPT-SoVITS
+- **特点**: 支持中文，效果自然
+
+### 6.3 DiP (Motion Diffusion Model)
+
+AI 动作生成技术：
+- **项目**: https://github.com/MotionDiffusionModel/MotionDiffusionModel
+- **原理**: 基于 diffusion 模型的 AI 动作生成
 
 ---
 
