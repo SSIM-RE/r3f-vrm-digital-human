@@ -444,43 +444,6 @@ export const UI = () => {
 
       {/* 左侧 - 工具栏 */}
       <div className="absolute left-4 top-1/2 -translate-y-1/2 flex flex-col gap-3 pointer-events-auto">
-        {/* 语音状态 */}
-        <div className="flex flex-col items-center gap-2 bg-black/40 backdrop-blur-sm px-4 py-3 rounded-2xl border border-white/5 hover:border-white/20 transition-colors group">
-          <div 
-            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all cursor-pointer hover:scale-110 ${
-              voiceStatus === "recording" ? "bg-red-500 animate-pulse shadow-lg shadow-red-500/50" :
-              voiceStatus === "processing" ? "bg-yellow-500 animate-bounce shadow-lg shadow-yellow-500/50" :
-              "bg-cyan-500 hover:bg-cyan-400 shadow-lg shadow-cyan-500/30"
-            }`}
-            onClick={() => {
-              if (voiceStatus === "idle") {
-                startRecording();
-                setVoiceStatus("recording");
-              } else if (voiceStatus === "recording") {
-                stopRecording();
-              }
-            }}
-          >
-            {voiceStatus === "recording" ? "⏺️" : "🎤"}
-          </div>
-          <span className="text-white/60 text-xs">
-            {voiceStatus === "recording" ? "录音中..." :
-             voiceStatus === "processing" ? "识别中..." : "点击说话"}
-          </span>
-          
-          {/* 录音时的波形效果 */}
-          {voiceStatus === "recording" && (
-            <div className="absolute -right-2 flex gap-0.5">
-              {[...Array(5)].map((_, i) => (
-                <div 
-                  key={i}
-                  className="w-1 bg-red-500 rounded-full animate-pulse"
-                  style={{ height: `${Math.random() * 12 + 4}px`, animationDelay: `${i * 0.1}s` }}
-                />
-              ))}
-            </div>
-          )}
-        </div>
 
         {/* 音乐控制 */}
         <div className="flex flex-col items-center gap-2 bg-black/40 backdrop-blur-sm px-4 py-3 rounded-2xl border border-white/5 hover:border-white/20 transition-colors">
@@ -626,8 +589,28 @@ export const UI = () => {
           </div>
         )}
         
-        {/* 文本输入框 */}
-        <div className="pointer-events-auto">
+        {/* 文本输入框 + 录音按钮 */}
+        <div className="pointer-events-auto flex items-center gap-3">
+          {/* 录音按钮 */}
+          <div 
+            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all cursor-pointer hover:scale-110 ${
+              voiceStatus === "recording" ? "bg-red-500 animate-pulse shadow-lg shadow-red-500/50" :
+              voiceStatus === "processing" ? "bg-yellow-500 animate-bounce shadow-lg shadow-yellow-500/50" :
+              "bg-cyan-500 hover:bg-cyan-400 shadow-lg shadow-cyan-500/30"
+            }`}
+            onClick={() => {
+              if (voiceStatus === "idle") {
+                startRecording();
+                setVoiceStatus("recording");
+              } else if (voiceStatus === "recording") {
+                stopRecording();
+              }
+            }}
+          >
+            {voiceStatus === "recording" ? "⏺️" : "🎤"}
+          </div>
+          
+          {/* 文本输入框 */}
           <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-3 rounded-full border border-white/20 hover:border-white/40 transition-colors">
             <input
               type="text"
