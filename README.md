@@ -259,4 +259,41 @@ Step 3: 前端响应
 
 ---
 
+## 相关技术介绍
+
+### VRM
+
+VRM 是虚拟形象专用的 3D 模型格式，广泛应用于虚拟主播、游戏中。
+
+- **特点**：自带骨骼、表情、形态目标数据
+- **优势**：标准化的虚拟形象格式，不同引擎之间可以通用
+- **官网**：https://vrm-c.github.io/
+
+### TTS (语音合成)
+
+Text-to-Speech，将文字转换为语音的技术。
+
+- **本项目使用**：GPT-SoVITS
+- **特点**：支持中文语音合成，效果自然
+- **项目地址**：https://github.com/RVC-Boss/GPT-SoVITS
+
+### DiP (Diffusion Planner)
+
+动作生成模型，可以根据文本描述生成对应的动作。
+
+- **原理**：基于 diffusion 模型的 AI 动作生成
+- **输入**：动作描述文本（如 "wave hand"、"dance"）
+- **输出**：动作序列数据
+- **项目地址**：https://github.com/MotionDiffusionModel/MotionDiffusionModel
+
+---
+
+## 相关项目
+
+- **VRM 渲染库**：https://github.com/pixiv/three-vrm
+- **GPT-SoVITS**：https://github.com/RVC-Boss/GPT-SoVITS
+- **DiP 动作模型**：https://github.com/MotionDiffusionModel/MotionDiffusionModel
+
+---
+
 *如需了解更多技术细节，可参考 [详细设计文档](docs/design/SYSTEM_DESIGN.md)*
