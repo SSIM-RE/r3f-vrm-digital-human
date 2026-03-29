@@ -165,4 +165,4 @@ AI 动作生成技术，根据文本描述生成自然动作序列。
 
 ---
 
-*更多细节见 [详细设计文档](docs/design/SYSTEM_DESIGN.md)*
+*更多细节见 [详细设计文档](SYSTEM_DESIGN.md)*
