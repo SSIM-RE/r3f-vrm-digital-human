@@ -120,14 +120,20 @@ OpenClaw 返回的结构化指令：
 | **Three.js** | WebGL JavaScript 库 | https://threejs.org/ |
 | **R3F** | React Three Fiber | https://github.com/pmndrs/react-three-fiber |
 | **OpenClaw** | AI Agent 框架 | https://openclaw.ai/ |
+| **TTS** | 语音合成（Text-to-Speech） | 各云服务商或自建服务 |
+| **Whisper** | OpenAI 语音识别模型 | https://github.com/openai/whisper |
 
 ---
 
 ## 参考项目
 
-- [three-vrm](https://github.com/pixiv/three-vrm) - VRM 模型渲染
-- [Motion Diffusion Model (DiP)](https://github.com/guytevet/motion-diffusion-model) - AI 动作生成
-- [Mixamo](https://mixamo.com) - 预设动作动画
+| 项目 | 说明 | 链接 |
+|------|------|------|
+| **three-vrm** | pixiv 出品的 VRM 渲染库 | https://github.com/pixiv/three-vrm |
+| **three-vrm-examples** | three-vrm 官方示例 | https://pixiv.github.io/three-vrm/ |
+| **Motion Diffusion Model (DiP)** | AI 动作生成模型 | https://github.com/guytevet/motion-diffusion-model |
+| **Mixamo** | Adobe 出品的动画平台 | https://mixamo.com |
+| **React Three Fiber** | React 的 Three.js 封装 | https://github.com/pmndrs/react-three-fiber |
 
 ---
 
