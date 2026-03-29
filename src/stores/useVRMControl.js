@@ -125,13 +125,17 @@ export const useVRMControl = create((set, get) => ({
     // 互动手势
     wave: 'Waving',
     pointing: 'Pointing',
+    point: 'Pointing',  // 兼容旧名称
     thumbs_up: 'Standing Thumbs Up',
     clap: 'Clapping',
     shrug: 'Shrugging',
-
+    shake: 'Shrugging',  // 兼容旧名称
+    
     // 头部动作
     nod: 'Lengthy Head Nod',
     think: 'Thinking',
+    thinking: 'Thinking',  // 兼容
+    nodding: 'Lengthy Head Nod',  // 兼容
     talking: 'Talking',
 
     // 移动

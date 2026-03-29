@@ -9,6 +9,41 @@ body {
   margin: 0;
 }
 
+/* 主题样式 - 深色主题（默认） */
+:root, .dark {
+  --bg-main: #0a0a0f;
+  --bg-card: rgba(20, 20, 30, 0.95);
+  --bg-overlay: rgba(30, 30, 45, 0.9);
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.7);
+  --text-muted: rgba(255, 255, 255, 0.5);
+  --border-color: rgba(255, 255, 255, 0.1);
+  --accent-primary: #00d4ff;
+  --accent-secondary: #a855f7;
+  --success: #22c55e;
+  --error: #ef4444;
+}
+
+/* 浅色主题 */
+.light {
+  --bg-main: #f1f5f9;
+  --bg-card: rgba(255, 255, 255, 0.98);
+  --bg-overlay: rgba(255, 255, 255, 0.95);
+  --text-primary: #1e293b;
+  --text-secondary: rgba(30, 41, 59, 0.7);
+  --text-muted: rgba(30, 41, 59, 0.5);
+  --border-color: rgba(0, 0, 0, 0.1);
+  --accent-primary: #0284c7;
+  --accent-secondary: #7c3aed;
+  --success: #16a34a;
+  --error: #dc2626;
+  background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%) !important;
+}
+
+.light section {
+  background: transparent !important;
+}
+
 /* 淡入淡出动画 */
 .animate-fade-in-up {
   animation: fadeInUp 1s ease-out forwards;
@@ -81,3 +116,264 @@ body {
     box-shadow: 0 0 20px rgba(0, 255, 255, 0.8);
   }
 }
+
+/* 隐藏 Leva 控制面板 */
+[data-leva-panel] {
+  display: none !important;
+}
+
+/* 下拉选择框样式 */
+select option {
+  background: var(--bg-card) !important;
+  color: var(--text-primary) !important;
+  padding: 8px 12px !important;
+}
+
+select option:hover,
+select option:focus {
+  background: var(--bg-overlay) !important;
+}
+
+/* ============================================
+   浅色主题详细样式
+   ============================================ */
+.light {
+  /* 主背景 */
+  background-color: #f1f5f9 !important;
+  color: #1e293b !important;
+}
+
+/* 所有面板容器 - 白色背景 */
+.light [class*="bg-black/40"],
+.light [class*="bg-black/50"],
+.light [class*="bg-black/60"],
+.light [class*="bg-black/70"],
+.light [class*="bg-black/80"],
+.light [class*="bg-black/90"],
+.light [class*="bg-black/95"],
+.light .rounded-2xl,
+.light .rounded-xl,
+.light .rounded-3xl {
+  background: rgba(255, 255, 255, 0.98) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+/* 模糊背景增强 */
+.light .backdrop-blur-sm,
+.light .backdrop-blur-md,
+.light .backdrop-blur-xl,
+.light .backdrop-blur-2xl {
+  background: rgba(255, 255, 255, 0.95) !important;
+  backdrop-filter: blur(16px);
+}
+
+/* 主要文字 - 深灰蓝 */
+.light h1, .light h2, .light h3, .light h4 {
+  color: #475569 !important;
+}
+
+/* 通用文字 - 中灰色调 */
+.light span {
+  color: #64748b !important;
+}
+
+.light label {
+  color: #64748b !important;
+}
+
+/* 次要文字 - 较淡的灰色 */
+.light .text-white\/60,
+.light .text-white\/70,
+.light .text-white\/50,
+.light .text-white\/40,
+.light .text-white\/30 {
+  color: #64748b !important;
+}
+
+/* 强调文字 - 深色 */
+.light .text-white,
+.light .text-white\/80,
+.light .text-white\/90 {
+  color: #1e293b !important;
+}
+
+/* 青色强调 - 浅色主题用深青色 */
+.light .text-cyan-400 {
+  color: #0284c7 !important;
+}
+
+/* 输入框 */
+.light input[type="text"],
+.light textarea {
+  background: rgba(0, 0, 0, 0.04) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  color: #1e293b !important;
+}
+
+.light input[type="text"]:focus,
+.light textarea:focus {
+  border-color: #0284c7 !important;
+  outline: none;
+}
+
+/* 范围滑块 */
+.light input[type="range"] {
+  background: rgba(0, 0, 0, 0.1) !important;
+}
+
+.light input[type="range"]::-webkit-slider-thumb {
+  background: #0284c7 !important;
+}
+
+/* 按钮 */
+.light button {
+  color: #1e293b !important;
+}
+
+/* 边框颜色调整 */
+.light .border-white\/5,
+.light .border-white\/10,
+.light .border-white\/20 {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+.light .border-red-500\/50 {
+  border-color: rgba(220, 38, 38, 0.3) !important;
+}
+
+/* 图标按钮背景 */
+.light .bg-white\/5,
+.light .bg-white\/10,
+.light .bg-white\/15 {
+  background: rgba(0, 0, 0, 0.04) !important;
+}
+
+/* 状态栏 - 深色背景 */
+.light .h-7.bg-black\/60 {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-top: 1px solid rgba(0, 0, 0, 0.1) !important;
+}
+
+.light .h-7 span {
+  color: #64748b !important;
+}
+
+/* 时间显示 - 浅色主题用深色但柔和 */
+.light .text-3xl {
+  color: #475569 !important;
+  font-weight: 500 !important;
+}
+
+/* 温度显示 */
+.light .text-sm.font-medium {
+  color: #64748b !important;
+}
+
+/* 天气图标 */
+.light .text-2xl {
+  color: #f59e0b !important;
+}
+
+/* Mico 名称 - 深青色醒目 */
+.light .text-cyan-400 {
+  color: #0369a1 !important;
+  font-weight: 600 !important;
+}
+
+/* 浅色主题下的主要文字 - 深灰蓝 */
+.light span,
+.light h3,
+.light label {
+  color: #334155 !important;
+}
+
+/* 次要文字如 "思考中..." - 中灰色 */
+.light .text-white\/30 {
+  color: #94a3b8 !important;
+}
+
+/* Toast 通知 - 浅色主题 */
+.light .fixed .bg-green-600 {
+  background: linear-gradient(135deg, #22c55e, #16a34a) !important;
+}
+
+.light .fixed .bg-red-600 {
+  background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+}
+
+/* 渐变按钮调整 */
+.light .from-green-500 {
+  background: linear-gradient(135deg, #22c55e, #16a34a) !important;
+}
+
+.light .from-yellow-500 {
+  background: linear-gradient(135deg, #eab308, #ca8a04) !important;
+}
+
+/* 下拉菜单背景 */
+.light select {
+  background: rgba(255, 255, 255, 0.98) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  color: #1e293b !important;
+}
+
+.light select:focus {
+  border-color: #0284c7 !important;
+}
+
+/* AI 回复卡片 - 浅色主题 */
+.light .bg-gradient-to-br.from-black\/90 {
+  background: linear-gradient(135deg, rgba(255,255,255,0.98), rgba(248,250,252,0.98)) !important;
+  border: 1px solid rgba(0,0,0,0.08) !important;
+}
+
+/* 徽章调整 */
+.light .bg-red-500 {
+  background: #ef4444 !important;
+}
+
+/* 工具栏按钮 - 浅色主题 */
+.light .flex.flex-col.items-center.gap-2 {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+.light .flex.flex-col.items-center.gap-2:hover {
+  background: rgba(255, 255, 255, 0.98) !important;
+}
+
+/* 聊天输入框 - 浅色主题 */
+.light .bg-white\/10 input,
+.light input[placeholder="和 Mico 聊天..."] {
+  color: #1e293b !important;
+  background: transparent !important;
+}
+
+.light input[placeholder="和 Mico 聊天..."]::placeholder {
+  color: #9ca3af !important;
+}
+
+/* 通用输入框文字 - 浅色主题 */
+.light input[type="text"],
+.light textarea {
+  color: #1e293b !important;
+}
+
+.light input::placeholder {
+  color: #9ca3af !important;
+}
+
+/* 发送按钮 - 浅色主题 */
+.light .bg-cyan-500 {
+  background: #0284c7 !important;
+}
+
+.light .bg-cyan-500:hover {
+  background: #0369a1 !important;
+}
+
+/* 发送按钮 - 浅色主题 */
+.light .bg-cyan-600 { background: #0891b2 !important; }
+.light .bg-cyan-600:hover { background: #0e7490 !important; }
+.light .bg-gray-200 { background: #e5e7eb !important; }

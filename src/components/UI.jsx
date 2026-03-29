@@ -318,15 +318,105 @@ export const UI = () => {
 
   // 语音状态
   const [voiceStatus, setVoiceStatus] = useState("idle"); // idle, recording, processing
-  const [notifications, setNotifications] = useState([
-    { id: 1, text: "收到新邮件", time: "2分钟前", unread: true }
-  ]);
+  const [notifications, setNotifications] = useState([]);
+  const [githubNotifications, setGithubNotifications] = useState([]);
+  const [gmailEmails, setGmailEmails] = useState([]);
   const [todos, setTodos] = useState(defaultTodos);
   const [showTodos, setShowTodos] = useState(false);
   const [showPanel, setShowPanel] = useState("none");
+  // 主题状态
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
+  // Toast 通知
+  const [toasts, setToasts] = useState([]);
+  
+  // 切换主题
+  const toggleTheme = () => {
+    const newTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(newTheme);
+    localStorage.setItem('theme', newTheme);
+    document.documentElement.classList.remove('dark', 'light');
+    document.documentElement.classList.add(newTheme);
+    document.body.classList.remove('dark', 'light');
+    document.body.classList.add(newTheme);
+    showToast('success', newTheme === 'dark' ? '切换到深色主题' : '切换到浅色主题');
+  };
+  
+  // 显示 Toast
+  const showToast = (type, message) => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, type, message }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 3000);
+  };
+  
+  // 初始化主题
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    setTheme(savedTheme);
+    document.documentElement.classList.add(savedTheme);
+  }, []);
+  
+  const [settings, setSettings] = useState(() => {
+    const defaults = {
+      lookAtMouse: false,
+      lipSyncScale: 0.5,
+      aiMouthWeight: 0.3,
+      animationFadeTime: 1.5,
+      avatar: "3859814441197244330.vrm",
+      animation: "Breathing Idle",
+    };
+    try {
+      const stored = localStorage.getItem('vrmSettings');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        // 过滤无效模型
+        if (parsed.avatar === 'model.vroid') delete parsed.avatar;
+        return { ...defaults, ...parsed };
+      }
+    } catch (e) {}
+    return defaults;
+  });
   const [showWeather, setShowWeather] = useState(false);
   const [systemStats, setSystemStats] = useState({ cpu: 23, memory: 8.2, battery: 87 });
   const [expanded, setExpanded] = useState(false);
+  
+  // GitHub token (从环境变量读取)
+  const GITHUB_TOKEN = import.meta.env.VITE_GITHUB_TOKEN || "";
+  
+  // 获取 GitHub 通知
+  useEffect(() => {
+    const fetchGithub = async () => {
+      try {
+        const res = await fetch("https://api.github.com/notifications", {
+          headers: { Authorization: `Bearer ${GITHUB_TOKEN}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const formatted = data.slice(0, 5).map(n => ({
+            id: `gh-${n.id}`,
+            icon: "🐙",
+            text: n.repository.full_name + ": " + n.subject.title,
+            time: new Date(n.updated_at).toLocaleString(),
+            unread: n.unread,
+            type: "github"
+          }));
+          setGithubNotifications(formatted);
+        }
+      } catch (e) { console.error("GitHub API error:", e); }
+    };
+    fetchGithub();
+    const interval = setInterval(fetchGithub, 60000);
+    return () => clearInterval(interval);
+  }, []);
+  
+  // 获取 Gmail（需要 OAuth，这里显示提示）
+  useEffect(() => {
+    // Gmail 需要 OAuth2，暂时显示模拟数据
+    setGmailEmails([
+      { id: "gm-1", icon: "📧", text: "示例邮件：项目更新通知", time: "10分钟前", unread: true, type: "gmail" }
+    ]);
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
@@ -510,7 +600,7 @@ export const UI = () => {
       <div className="absolute top-4 left-4 flex items-center gap-3 pointer-events-auto group">
         <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-pink-300 to-purple-400 flex items-center justify-center text-2xl shadow-lg shadow-pink-500/20 hover:scale-110 transition-transform cursor-pointer overflow-hidden">
           <img src="/models/Mico_V2.vrm" alt="Mico" className="w-full h-full object-cover" onError={(e) => {e.target.style.display='none'; e.target.nextSibling.style.display='flex';}} />
-          <span className="hidden">🎀</span>
+          <span className="hidden">🐱</span>
         </div>
         <div className="flex flex-col">
           <span className="text-white font-medium text-lg">Mico</span>
@@ -575,24 +665,13 @@ export const UI = () => {
           <span className="text-white/60 text-xs">待办</span>
         </div>
 
-        {/* 快捷短语 */}
-        <div 
-          className="flex flex-col items-center gap-2 bg-black/40 backdrop-blur-sm px-4 py-3 rounded-2xl border border-white/5 hover:border-white/20 transition-colors cursor-pointer hover:bg-black/60"
-          onClick={() => setShowPanel(showPanel === "shortcuts" ? "none" : "shortcuts")}
-        >
-          <div className="w-12 h-12 rounded-full bg-orange-500 flex items-center justify-center">
-            💬
-          </div>
-          <span className="text-white/60 text-xs">快捷</span>
-        </div>
-
         {/* 通知 */}
         <div 
           className="flex flex-col items-center gap-2 bg-black/40 backdrop-blur-sm px-4 py-3 rounded-2xl border border-white/5 hover:border-white/20 transition-colors cursor-pointer hover:bg-black/60"
-          onClick={() => setNotifications(n => n.map(x => ({ ...x, unread: false })))}
+          onClick={() => setShowPanel(showPanel === "notifications" ? "none" : "notifications")}
         >
           <div className="relative">
-            <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
               🔔
             </div>
             {notifications.filter(n => n.unread).length > 0 && (
@@ -601,7 +680,29 @@ export const UI = () => {
               </div>
             )}
           </div>
-          <span className="text-white/60 text-xs">消息</span>
+          <span className="text-white/60 text-xs">通知</span>
+        </div>
+
+        {/* 控制 */}
+        <div 
+          className="flex flex-col items-center gap-2 bg-black/40 backdrop-blur-sm px-4 py-3 rounded-2xl border border-white/5 hover:border-white/20 transition-colors cursor-pointer hover:bg-black/60"
+          onClick={() => setShowPanel(showPanel === "controls" ? "none" : "controls")}
+        >
+          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-500 to-cyan-500 flex items-center justify-center">
+            ⚙️
+          </div>
+          <span className="text-white/60 text-xs">控制</span>
+        </div>
+
+        {/* 主题切换 */}
+        <div 
+          className="flex flex-col items-center gap-2 bg-black/40 backdrop-blur-sm px-4 py-3 rounded-2xl border border-white/5 hover:border-white/20 transition-colors cursor-pointer hover:bg-black/60"
+          onClick={toggleTheme}
+        >
+          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center">
+            {theme === 'dark' ? '🌙' : '☀️'}
+          </div>
+          <span className="text-white/60 text-xs">主题</span>
         </div>
 
         {/* 展开/收起 */}
@@ -617,60 +718,86 @@ export const UI = () => {
       </div>
 
       {/* 底部中间 - AI 回复 + 文本输入 */}
-      <div className="absolute bottom-24 left-1/2 -translate-x-1/2 flex flex-col items-center gap-4 pointer-events-none">
-        {/* AI 回复显示 */}
-        {aiReply && (
-          <div className="pointer-events-auto">
-            <div className="relative bg-gradient-to-r from-cyan-500/20 to-purple-500/20 backdrop-blur-md px-6 py-4 rounded-2xl border border-cyan-500/30 shadow-lg shadow-cyan-500/20 max-w-md animate-fade-in">
-              {/* 装饰线条 */}
-              <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-cyan-400 rounded-tl-lg"></div>
-              <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-purple-400 rounded-br-lg"></div>
-              
+      <div className="absolute bottom-24 right-8 flex flex-col items-end gap-4 pointer-events-none">
+        {/* AI 思考中动画 */}
+        {voiceStatus === "processing" && (
+          <div className="pointer-events-auto animate-slide-up">
+            <div className="relative bg-gradient-to-br from-black/90 via-gray-900/80 to-black/90 backdrop-blur-xl px-6 py-5 rounded-3xl border border-white/10 shadow-2xl w-96">
               {/* 头像和名称 */}
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-cyan-400 to-purple-500 flex items-center justify-center text-xs">🤖</div>
-                <span className="text-cyan-400 text-xs font-medium">Mico</span>
-                <span className="text-white/30 text-[10px]">· just now</span>
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-cyan-400 to-purple-500 flex items-center justify-center text-lg animate-bounce">🐱</div>
+                <div>
+                  <span className="text-cyan-400 font-medium">Mico</span>
+                  <span className="text-white/30 text-xs ml-2">· 思考中...</span>
+                </div>
               </div>
               
-              {/* 回复内容 - Markdown 渲染 */}
-              <div className="text-white/90 text-sm leading-relaxed font-light">
+              {/* 三个跳动的点 */}
+              <div className="flex items-center gap-1 py-2">
+                <div className="w-2 h-2 rounded-full bg-cyan-400 animate-bounce" style={{animationDelay: '0ms'}}></div>
+                <div className="w-2 h-2 rounded-full bg-purple-400 animate-bounce" style={{animationDelay: '150ms'}}></div>
+                <div className="w-2 h-2 rounded-full bg-pink-400 animate-bounce" style={{animationDelay: '300ms'}}></div>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* AI 回复显示 */}
+        {aiReply && (
+          <div className="pointer-events-auto animate-slide-up">
+            <div className="relative bg-gradient-to-br from-black/90 via-gray-900/80 to-black/90 backdrop-blur-xl px-6 py-5 rounded-3xl border border-white/10 shadow-2xl w-96 group">
+              {/* 渐变光晕背景 */}
+              <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-cyan-500/10 via-purple-500/10 to-pink-500/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              
+              {/* 装饰角落 */}
+              <div className="absolute top-0 left-0 w-10 h-10 border-t-2 border-l-2 border-cyan-500/50 rounded-tl-3xl"></div>
+              <div className="absolute bottom-0 right-0 w-10 h-10 border-b-2 border-r-2 border-purple-500/50 rounded-br-3xl"></div>
+              
+              {/* 头像和名称 */}
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-cyan-400 to-purple-500 flex items-center justify-center text-lg">🐱</div>
+                <div>
+                  <span className="text-cyan-400 font-medium">Mico</span>
+                  <span className="text-white/30 text-xs ml-2">· just now</span>
+                </div>
+              </div>
+              
+              {/* 回复内容 */}
+              <div className="text-white/90 text-sm leading-relaxed">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                   {aiReply}
                 </ReactMarkdown>
               </div>
               
-              {/* TTS 播放按钮 */}
-              <div className="mt-2 flex items-center gap-2">
+              {/* 操作按钮 */}
+              <div className="mt-4 flex items-center gap-2">
                 <button
                   onClick={() => ttsSpeak(aiReply)}
                   disabled={isSpeaking}
-                  className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs transition-all ${
                     isSpeaking 
                       ? 'bg-purple-500/50 text-white/50' 
-                      : 'bg-cyan-500/30 hover:bg-cyan-500/50 text-cyan-300'
-                  } transition-colors`}
+                      : 'bg-white/10 hover:bg-white/20 text-white/70'
+                  }`}
                 >
-                  {isSpeaking ? '🔊 播放中...' : '🔈 播放语音'}
+                  {isSpeaking ? '🔊' : '🔈'} {isSpeaking ? '播放中' : '播放'}
+                </button>
+                <button className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs bg-white/10 hover:bg-white/20 text-white/70 transition-all">
+                  📋 详情
                 </button>
               </div>
               
-              {/* 详细回复 - 仅当有详细文本时显示 */}
+              {/* 详细回复 */}
               {aiReplyDetail && (
                 <div className="mt-3 pt-3 border-t border-white/10">
-                  <div className="text-purple-400 text-xs mb-1">📋 详细信息</div>
-                  <div className="text-white/70 text-sm leading-relaxed font-light">
+                  <div className="text-white/50 text-xs mb-2">📋 详细信息</div>
+                  <div className="text-white/70 text-sm leading-relaxed">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {aiReplyDetail}
                     </ReactMarkdown>
                   </div>
                 </div>
               )}
-              
-              {/* 底部装饰 */}
-              <div className="mt-2 flex items-center gap-1">
-                <div className="h-0.5 flex-1 bg-gradient-to-r from-cyan-500/50 to-transparent"></div>
-              </div>
             </div>
           </div>
         )}
@@ -697,7 +824,7 @@ export const UI = () => {
           </div>
           
           {/* 文本输入框 */}
-          <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-3 rounded-full border border-white/20 hover:border-white/40 transition-colors">
+          <div className="flex items-center gap-2 bg-white/90 backdrop-blur-md px-4 py-3 rounded-full border border-gray-200 hover:border-gray-300 transition-colors">
             <input
               type="text"
               value={textInput}
@@ -705,15 +832,15 @@ export const UI = () => {
               onKeyDown={(e) => e.key === 'Enter' && handleTextSubmit()}
               placeholder="和 Mico 聊天..."
               disabled={voiceStatus === "processing"}
-              className="bg-transparent border-none outline-none text-white text-sm w-64 placeholder-white/40"
+              className="bg-transparent border-none outline-none text-gray-800 text-sm w-64 placeholder-gray-400"
             />
             <button
               onClick={handleTextSubmit}
               disabled={!textInput.trim() || voiceStatus === "processing"}
               className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
                 textInput.trim() && voiceStatus !== "processing"
-                  ? "bg-cyan-500 hover:bg-cyan-400 text-white" 
-                  : "bg-white/10 text-white/30 cursor-not-allowed"
+                  ? "bg-cyan-600 hover:bg-cyan-500 text-white" 
+                  : "bg-gray-200 text-gray-400 cursor-not-allowed"
               }`}
             >
               ➤
@@ -828,44 +955,227 @@ export const UI = () => {
         </div>
       )}
 
-      {/* 快捷短语面板 */}
-      {showPanel === "shortcuts" && (
-        <div className="absolute left-20 top-1/2 -translate-y-1/2 bg-black/90 backdrop-blur-xl p-5 rounded-2xl border border-white/10 pointer-events-auto w-72 animate-slide-in-right">
-          <h3 className="text-white font-medium text-lg mb-4">💬 快捷短语</h3>
-          <div className="space-y-2">
-            {quickPhrases.map((phrase, i) => (
-              <button 
-                key={i}
-                onClick={() => handleQuickPhrase(phrase.text)}
-                className="w-full flex items-center gap-3 px-4 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-white/80 text-sm transition-all hover:translate-x-1"
+      {/* 通知中心面板 */}
+      {showPanel === "notifications" && (
+        <div className="absolute left-20 top-1/2 -translate-y-1/2 bg-black/95 backdrop-blur-2xl p-5 rounded-2xl border border-white/10 pointer-events-auto w-80 animate-slide-in-right">
+          {/* 标题 */}
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-white font-semibold text-lg">🔔 通知中心</h3>
+            <button onClick={() => setShowPanel("none")} className="text-white/40 hover:text-white">✕</button>
+          </div>
+          
+          {/* 标签页 */}
+          <div className="flex gap-1 mb-4 bg-white/5 p-1 rounded-lg">
+            <button className="flex-1 py-1.5 px-2 rounded text-xs bg-gradient-to-r from-blue-500 to-purple-500 text-white">全部 {githubNotifications.length + gmailEmails.length}</button>
+            <button className="flex-1 py-1.5 px-2 rounded text-xs text-white/60 flex items-center justify-center gap-1">🐙 GitHub {githubNotifications.length}</button>
+            <button className="flex-1 py-1.5 px-2 rounded text-xs text-white/60 flex items-center justify-center gap-1">📧 Gmail {gmailEmails.length}</button>
+          </div>
+          
+          {/* 通知列表 */}
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {[...githubNotifications, ...gmailEmails].map(n => (
+              <div 
+                key={n.id}
+                className={`flex items-start gap-3 px-3 py-2 rounded-xl border transition-colors ${n.unread ? "bg-white/5 border-white/10 hover:border-white/20" : "bg-transparent border-transparent hover:bg-white/5"}`}
               >
-                <span className="text-lg">{phrase.icon}</span>
-                <span>{phrase.text}</span>
-              </button>
+                <span className="text-sm">{n.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white/80 text-sm truncate">{n.text}</p>
+                  <p className="text-white/30 text-xs">{n.time}</p>
+                </div>
+              </div>
             ))}
           </div>
+          
+          {/* 空状态 */}
+          {githubNotifications.length === 0 && gmailEmails.length === 0 && (
+            <div className="text-center py-8">
+              <span className="text-4xl">✨</span>
+              <p className="text-white/40 text-sm mt-2">暂无通知</p>
+            </div>
+          )}
         </div>
       )}
 
-      {/* 通知面板 */}
-      {notifications.length > 0 && (
-        <div className="absolute top-32 right-4 flex flex-col gap-2 pointer-events-auto max-w-xs">
-          {notifications.slice(0, 3).map(n => (
-            <div 
-              key={n.id}
-              className={`flex items-center gap-3 px-4 py-2 rounded-xl border animate-slide-in-right ${
-                n.unread 
-                  ? "bg-red-500/20 border-red-500/30" 
-                  : "bg-black/60 border-white/10"
-              }`}
-            >
-              <span className={n.unread ? "text-red-400" : "text-white/60"}>
-                {n.unread ? "🔔" : "✓"}
-              </span>
-              <span className="text-white/80 text-sm flex-1">{n.text}</span>
-              <span className="text-white/30 text-xs">{n.time}</span>
+      {/* 控制面板 */}
+      {showPanel === "controls" && (
+        <div className="absolute left-20 top-1/2 -translate-y-1/2 bg-black/95 backdrop-blur-2xl p-6 rounded-3xl border border-white/10 pointer-events-auto w-80 animate-slide-in-right shadow-2xl">
+          {/* 标题区 */}
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h3 className="text-white font-semibold text-xl">⚙️ 控制面板</h3>
+              <span className="text-white/40 text-xs">VRM 设置</span>
             </div>
-          ))}
+            <button onClick={() => setShowPanel("none")} className="text-white/40 hover:text-white">✕</button>
+          </div>
+          
+          {/* 控制项列表 */}
+          <div className="space-y-4">
+            {/* 模型选择 */}
+            <div className="space-y-2">
+              <label className="text-white/60 text-xs">模型</label>
+              <select 
+                className="w-full bg-white/10 text-white text-sm rounded-xl px-3 py-2 border border-white/10 focus:border-cyan-500 outline-none appearance-none cursor-pointer"
+                style={{ colorScheme: 'dark' }}
+                onChange={(e) => {
+                  const newValue = e.target.value;
+                  if (!newValue) return;
+                  const newSettings = {...settings, avatar: newValue};
+                  setSettings(newSettings);
+                  localStorage.setItem('vrmSettings', JSON.stringify(newSettings));
+                  window.dispatchEvent(new CustomEvent('vrmSettingsUpdate', { detail: { avatar: newValue } }));
+                  showToast('success', `已切换到: ${e.target.options[e.target.selectedIndex].text}`);
+                }}
+                value={settings.avatar || "3859814441197244330.vrm"}
+              >
+                <option value="3859814441197244330.vrm">默认模型</option>
+                <option value="262410318834873893.vrm">模型 262410318834893</option>
+                <option value="3636451243928341470.vrm">模型 3636451243928341470</option>
+                <option value="8087383217573817818.vrm">模型 8087383217573817818</option>
+                <option value="AvatarSample_E.vrm">AvatarSample_E</option>
+                <option value="AvatarSample_E1.vrm">AvatarSample_E1</option>
+                <option value="Mico_V1.vrm">Mico_V1</option>
+                <option value="Mico_V2.vrm">Mico_V2</option>
+              </select>
+            </div>
+            
+            {/* 动画选择 */}
+            <div className="space-y-2">
+              <label className="text-white/60 text-xs">动画</label>
+              <select 
+                className="w-full bg-white/10 text-white text-sm rounded-xl px-3 py-2 border border-white/10 focus:border-cyan-500 outline-none appearance-none cursor-pointer"
+                style={{ colorScheme: 'dark' }}
+                onChange={(e) => {
+                  const newValue = e.target.value;
+                  if (!newValue) return;
+                  const newSettings = {...settings, animation: newValue};
+                  setSettings(newSettings);
+                  localStorage.setItem('vrmSettings', JSON.stringify(newSettings));
+                  window.dispatchEvent(new CustomEvent('vrmSettingsUpdate', { detail: { animation: newValue } }));
+                  showToast('success', `已切换到: ${e.target.options[e.target.selectedIndex].text}`);
+                }}
+                value={settings.animation || "Breathing Idle"}
+              >
+                <option value="Breathing Idle">Breathing Idle</option>
+                <option value="Idle">Idle</option>
+                <option value="Walking">Walking</option>
+                <option value="Running">Running</option>
+                <option value="Jumping">Jumping</option>
+                <option value="Talking">Talking</option>
+                <option value="Thinking">Thinking</option>
+                <option value="Waving">Waving</option>
+                <option value="Shrugging">Shrugging</option>
+                <option value="Pointing">Pointing</option>
+                <option value="Standing Thumbs Up">Standing Thumbs Up</option>
+                <option value="Hip Hop Dancing">Hip Hop Dancing</option>
+                <option value="Robot Hip Hop Dance">Robot Hip Hop Dance</option>
+                <option value="Silly Dancing">Silly Dancing</option>
+                <option value="Swing Dancing">Swing Dancing</option>
+                <option value="Rumba Dancing">Rumba Dancing</option>
+                <option value="Bboy Hip Hop Move">Bboy Hip Hop Move</option>
+                <option value="Bboy Uprock Start">Bboy Uprock Start</option>
+                <option value="Thriller Part 2">Thriller Part 2</option>
+                <option value="Typing">Typing</option>
+                <option value="Entry">Entry</option>
+              </select>
+            </div>
+            
+            {/* 角色高度 */}
+            <div className="space-y-2">
+              <label className="text-white/60 text-xs">角色高度: <span id="avatarHeight-value">-1.25</span></label>
+              <input 
+                type="range" 
+                min="-2" 
+                max="0" 
+                step="0.01" 
+                defaultValue="-1.25" 
+                className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                onChange={(e) => {
+                  const newValue = e.target.value;
+                  document.getElementById('avatarHeight-value').textContent = newValue;
+                  const newSettings = {...settings, height: parseFloat(newValue)};
+                  localStorage.setItem('vrmSettings', JSON.stringify(newSettings));
+                  window.dispatchEvent(new CustomEvent('vrmSettingsUpdate', { detail: { height: parseFloat(newValue) } }));
+                }}
+              />
+            </div>
+            
+            {/* 注视鼠标 */}
+            <div className="flex items-center justify-between">
+              <span className="text-white/80 text-sm">注视鼠标</span>
+              <button 
+                className="w-12 h-6 bg-white/10 rounded-full relative transition-colors"
+                onClick={() => {
+                  const newValue = !settings.lookAtMouse;
+                  setSettings({...settings, lookAtMouse: newValue});
+                  localStorage.setItem('vrmSettings', JSON.stringify({...settings, lookAtMouse: newValue}));
+                  window.dispatchEvent(new CustomEvent('vrmSettingsUpdate', { detail: { lookAtMouse: newValue } }));
+                  showToast('success', newValue ? '已开启注视鼠标' : '已关闭注视鼠标');
+                }}
+              >
+                <div className={`absolute top-1 w-4 h-4 bg-white/50 rounded-full transition-all ${settings.lookAtMouse ? 'left-7' : 'left-1'}`}></div>
+              </button>
+            </div>
+            
+            {/* TTS幅度 */}
+            <div className="space-y-2">
+              <label className="text-white/60 text-xs">TTS幅度: <span id="tts-value">0.5</span></label>
+              <input 
+                type="range" 
+                min="0.1" 
+                max="1.5" 
+                step="0.1" 
+                defaultValue="0.5" 
+                className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                onChange={(e) => {
+                  const newValue = e.target.value;
+                  document.getElementById('tts-value').textContent = newValue;
+                  const newSettings = {...settings, lipSyncScale: parseFloat(newValue)};
+                  localStorage.setItem('vrmSettings', JSON.stringify(newSettings));
+                  window.dispatchEvent(new CustomEvent('vrmSettingsUpdate', { detail: newSettings }));
+                }}
+              />
+            </div>
+            
+            {/* 表情幅度 */}
+            <div className="space-y-2">
+              <label className="text-white/60 text-xs">表情幅度: <span id="emotion-value">0.3</span></label>
+              <input 
+                type="range" 
+                min="0" 
+                max="1" 
+                step="0.1" 
+                defaultValue="0.3" 
+                className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                onChange={(e) => {
+                  const newValue = e.target.value;
+                  document.getElementById('emotion-value').textContent = newValue;
+                  const newSettings = {...settings, aiMouthWeight: parseFloat(newValue)};
+                  localStorage.setItem('vrmSettings', JSON.stringify(newSettings));
+                  window.dispatchEvent(new CustomEvent('vrmSettingsUpdate', { detail: newSettings }));
+                }}
+              />
+            </div>
+            
+            {/* 过渡时间 */}
+            <div className="space-y-2">
+              <label className="text-white/60 text-xs">过渡时间: <span id="fade-value">1.5</span>s</label>
+              <input 
+                type="range" 
+                min="0.1" 
+                max="3" 
+                step="0.1" 
+                defaultValue="1.5" 
+                className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                onChange={(e) => {
+                  const newSettings = {...settings, animationFadeTime: parseFloat(e.target.value)};
+                  localStorage.setItem('vrmSettings', JSON.stringify(newSettings));
+                  document.getElementById('fade-value').textContent = e.target.value;
+                  window.dispatchEvent(new CustomEvent('vrmSettingsUpdate', { detail: newSettings }));
+                }}
+              />
+            </div>
+          </div>
         </div>
       )}
 
@@ -874,6 +1184,25 @@ export const UI = () => {
         <p className="text-white/20 text-xs">🖱️ 右键旋转 · 滚轮缩放 · 左键平移</p>
       </div>
 
+      {/* Toast 通知 */}
+      <div className="fixed top-20 right-4 z-50 flex flex-col gap-2">
+        {toasts.map(toast => (
+          <div 
+            key={toast.id}
+            className={`px-4 py-3 rounded-xl shadow-lg animate-slide-in-right flex items-center gap-2 ${
+              toast.type === 'success' 
+                ? 'bg-green-600 text-white' 
+                : toast.type === 'error' 
+                  ? 'bg-red-600 text-white'
+                  : 'bg-gray-700 text-white'
+            }`}
+          >
+            <span>{toast.type === 'success' ? '✅' : toast.type === 'error' ? '❌' : 'ℹ️'}</span>
+            <span className="text-sm">{toast.message}</span>
+          </div>
+        ))}
+      </div>
+      
       {/* 状态栏 - 底部 */}
       <div className="absolute bottom-0 left-0 right-0 h-7 bg-black/60 backdrop-blur-sm flex items-center justify-center gap-8 pointer-events-none border-t border-white/5">
         <span className="text-white/30 text-xs flex items-center gap-1">
