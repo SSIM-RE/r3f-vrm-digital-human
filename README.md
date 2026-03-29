@@ -1,5 +1,7 @@
 # VRM 虚拟数字人 × OpenClaw
 
+> 🎬 **演示视频**: [B站链接](https://www.bilibili.com/video/BV1xeXXBsELy/?spm_id_from=333.1387.homepage.video_card.click&vd_source=3af73ba24267ae9df6d4de926072d92e)
+
 > ⚠️ **声明**: 本项目主要作为**设计思路参考**，展示如何将 VRM 虚拟形象与 AI Agent 结合的架构方案。代码实现可能不完整，仅供学习参考。
 
 ---
