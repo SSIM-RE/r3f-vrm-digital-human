@@ -132,7 +132,7 @@
 
 - VRM 渲染库: https://github.com/pixiv/three-vrm
 - GPT-SoVITS: https://github.com/RVC-Boss/GPT-SoVITS
-- DiP 动作模型: https://github.com/MotionDiffusionModel/MotionDiffusionModel
+- DiP 动作模型: https://github.com/guytevet/motion-diffusion-model
 
 ---
 
