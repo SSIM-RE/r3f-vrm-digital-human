@@ -120,7 +120,7 @@ OpenClaw 返回的结构化指令：
 | **Three.js** | WebGL JavaScript 库 | https://threejs.org/ |
 | **R3F** | React Three Fiber | https://github.com/pmndrs/react-three-fiber |
 | **OpenClaw** | AI Agent 框架 | https://openclaw.ai/ |
-| **TTS** | 语音合成（Text-to-Speech） | 各云服务商或自建服务 |
+| **TTS** | 中文语音合成（GPT-SoVITS） | https://github.com/Soundario/GPT-SoVITS |
 | **Whisper** | OpenAI 语音识别模型 | https://github.com/openai/whisper |
 
 ---
